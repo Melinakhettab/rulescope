@@ -50,9 +50,11 @@ export function runGitGrep(
 
   for (const raw of lines) {
     if (!raw) continue;
+    // Strip trailing \r from Windows CRLF line endings
+    const trimmed = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
     // Format: <file>:<line>:<snippet>
     // File paths may contain colons on some systems; line number is always numeric
-    const match = raw.match(/^([^:]+):(\d+):(.*)$/);
+    const match = trimmed.match(/^([^:]+):(\d+):(.*)$/);
     if (!match) continue;
     const [, file, lineStr, snippet] = match;
     const line = parseInt(lineStr, 10);

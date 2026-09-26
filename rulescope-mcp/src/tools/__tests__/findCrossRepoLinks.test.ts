@@ -82,6 +82,61 @@ describe("findCrossRepoLinks — HTTP routes", () => {
   });
 });
 
+// ─── HTTP route extended detection tests ─────────────────────────────────────
+
+describe("findCrossRepoLinks — HTTP routes (addRoute / concatenation)", () => {
+  it("detects addRoute('POST', '/api/transfers') ↔ fetch(`${API_HOST}/api/transfers`)", async () => {
+    const providerRepo = await makeFixtureRepo("cross-repo-addroute-provider");
+    const consumerRepo = await makeFixtureRepo("cross-repo-addroute-consumer");
+    try {
+      const { links } = await findCrossRepoLinks({
+        repoPaths: [providerRepo, consumerRepo],
+      });
+
+      const httpLinks = links.filter((l) => l.kind === "http_route");
+      expect(httpLinks.length).toBeGreaterThan(0);
+
+      const transfersLink = httpLinks.find((l) =>
+        l.matchedValue.startsWith("/api/transfers"),
+      );
+      expect(transfersLink).toBeDefined();
+      if (!transfersLink) return;
+
+      expect(transfersLink.provider.repoPath).toBe(providerRepo);
+      expect(transfersLink.consumer.repoPath).toBe(consumerRepo);
+      expect(transfersLink.provider.snippet).toContain("addRoute");
+      expect(transfersLink.consumer.snippet).toContain("fetch");
+    } finally {
+      await removeFixtureRepo(providerRepo);
+      await removeFixtureRepo(consumerRepo);
+    }
+  });
+
+  it("matches '/api/accounts/:id' (provider) with `${API_HOST}/api/accounts/` + id (consumer)", async () => {
+    const providerRepo = await makeFixtureRepo("cross-repo-addroute-provider");
+    const consumerRepo = await makeFixtureRepo("cross-repo-addroute-consumer");
+    try {
+      const { links } = await findCrossRepoLinks({
+        repoPaths: [providerRepo, consumerRepo],
+      });
+
+      const accountsLink = links.filter(
+        (l) =>
+          l.kind === "http_route" &&
+          l.matchedValue.startsWith("/api/accounts"),
+      );
+      expect(accountsLink.length).toBeGreaterThan(0);
+
+      const link = accountsLink[0];
+      expect(link.provider.repoPath).toBe(providerRepo);
+      expect(link.consumer.repoPath).toBe(consumerRepo);
+    } finally {
+      await removeFixtureRepo(providerRepo);
+      await removeFixtureRepo(consumerRepo);
+    }
+  });
+});
+
 // ─── Shared-package tests ─────────────────────────────────────────────────────
 
 describe("findCrossRepoLinks — shared packages", () => {

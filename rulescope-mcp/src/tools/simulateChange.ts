@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile, access } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { SimulationResult, SimulationRow, SimulationEdit } from "../types.js";
@@ -14,6 +14,74 @@ export interface SimulateChangeInput {
 }
 
 const TEST_FILE_NAME = "__rulescope_sim__.test.ts";
+const RULESCOPE_CONFIG_NAME = "vitest.rulescope.config.mjs";
+
+/** Known vitest config filenames, in priority order. */
+const VITEST_CONFIG_CANDIDATES = [
+  "vitest.config.ts",
+  "vitest.config.mts",
+  "vitest.config.js",
+  "vitest.config.mjs",
+];
+
+/**
+ * Detects the first existing vitest config file inside the given directory.
+ * Returns its basename (e.g. "vitest.config.ts"), or null if none exists.
+ */
+async function detectVitestConfig(dir: string): Promise<string | null> {
+  for (const candidate of VITEST_CONFIG_CANDIDATES) {
+    try {
+      await access(join(dir, candidate));
+      return candidate;
+    } catch {
+      // not found — try next
+    }
+  }
+  return null;
+}
+
+/**
+ * Writes a `vitest.rulescope.config.mjs` file into the worktree.
+ *
+ * If the project already has a vitest config, the generated file imports it
+ * and uses `mergeConfig` to override `test.include` so that only the
+ * simulation test file is picked up (regardless of the project's own include
+ * patterns).
+ *
+ * If there is no project vitest config, a minimal standalone config is written.
+ */
+async function writeRulescopeConfig(worktreePath: string): Promise<void> {
+  const existing = await detectVitestConfig(worktreePath);
+
+  let content: string;
+  if (existing) {
+    // Import the project config (vitest supports TS/MJS imports at runtime via
+    // its own loader, so we can safely import the TS config from a .mjs file
+    // using a dynamic import that vitest resolves through its own pipeline).
+    content = `\
+import { mergeConfig } from "vitest/config";
+import projectConfig from "./${existing}";
+
+export default mergeConfig(projectConfig, {
+  test: {
+    include: [${JSON.stringify(TEST_FILE_NAME)}],
+  },
+});
+`;
+  } else {
+    content = `\
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    include: [${JSON.stringify(TEST_FILE_NAME)}],
+  },
+});
+`;
+  }
+
+  await writeFile(join(worktreePath, RULESCOPE_CONFIG_NAME), content, "utf8");
+}
 
 /**
  * Applies a list of search-replace edits inside a worktree.
@@ -100,11 +168,14 @@ export async function simulateChange(
   resolvedWorktreePath = await createWorktree(repoPath, uuid);
 
   try {
-    // Write the test file into the worktree
+    // Write the simulation test file into the worktree
     await writeFile(join(resolvedWorktreePath, TEST_FILE_NAME), testCode, "utf8");
 
+    // Write the rulescope vitest config that forces include to only the sim file
+    await writeRulescopeConfig(resolvedWorktreePath);
+
     // ── Before run ────────────────────────────────────────────────────────────
-    const beforeResult = runVitest(resolvedWorktreePath, nodeModules, TEST_FILE_NAME, "before");
+    const beforeResult = runVitest(resolvedWorktreePath, nodeModules, RULESCOPE_CONFIG_NAME, "before");
     rawBefore = beforeResult.rawOutput;
 
     // ── Apply edits (if any) ──────────────────────────────────────────────────
@@ -113,7 +184,7 @@ export async function simulateChange(
     }
 
     // ── After run ─────────────────────────────────────────────────────────────
-    const afterResult = runVitest(resolvedWorktreePath, nodeModules, TEST_FILE_NAME, "after");
+    const afterResult = runVitest(resolvedWorktreePath, nodeModules, RULESCOPE_CONFIG_NAME, "after");
     rawAfter = afterResult.rawOutput;
 
     rows = mergeRows(beforeResult.rows, afterResult.rows);

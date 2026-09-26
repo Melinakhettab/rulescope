@@ -14,31 +14,113 @@ export interface FindCrossRepoLinksOutput {
 // ─── HTTP route helpers ───────────────────────────────────────────────────────
 
 /**
- * Extracts the `/api/...` path literal from a router.METHOD(...) line.
- * Matches:  router.get("/api/foo",  router.post(`/api/bar`,  etc.
+ * Normalises an `/api/...` path for matching:
+ *  - Drops any host prefix (everything before the first `/api/`)
+ *  - Collapses `:param` Express params, `${...}` template segments, and a
+ *    trailing `+ variable` string concatenation into the wildcard `*`
+ *
+ * Examples:
+ *   "/api/accounts/:id"       → "/api/accounts/*"
+ *   "/api/accounts/ + id"     → "/api/accounts/*"
+ *   "/api/transfers"          → "/api/transfers"
  */
-function extractRoutePath(snippet: string): string | null {
-  const m = snippet.match(
-    /router\s*\.\s*(?:get|post|put|delete|patch)\s*\(\s*['"`](\/api\/[^'"`\s)]+)/i,
-  );
-  return m ? m[1] : null;
+function normalizePath(raw: string): string {
+  // Drop everything before (and including) any host prefix before /api/
+  const apiIdx = raw.indexOf("/api/");
+  const path = apiIdx >= 0 ? raw.slice(apiIdx) : raw;
+
+  // Strip a trailing concatenation suffix like " + id" or " + someVar"
+  const noConcat = path.replace(/\s*\+\s*\w+\s*$/, "");
+
+  const segments = noConcat.split("/").map((seg) => {
+    // :param  or  ${...}  → wildcard
+    if (seg.startsWith(":") || /^\$\{[^}]+\}$/.test(seg)) return "*";
+    return seg;
+  });
+
+  let result = segments.join("/");
+
+  // A trailing slash (from "/api/accounts/" before concatenation) → wildcard segment
+  if (result.endsWith("/")) result = result + "*";
+
+  return result;
 }
 
 /**
- * Extracts the `/api/...` path literal from a fetch(...) call line.
+ * Returns true when two normalised paths match, treating `*` as a wildcard
+ * segment on either side.
+ */
+function pathsMatch(a: string, b: string): boolean {
+  if (a === b) return true;
+  const aSeg = a.split("/");
+  const bSeg = b.split("/");
+  if (aSeg.length !== bSeg.length) return false;
+  return aSeg.every((s, i) => s === "*" || bSeg[i] === "*" || s === bSeg[i]);
+}
+
+/**
+ * Extracts the `/api/...` path literal from a provider route line.
+ *
+ * Matches all common styles:
+ *   router.get("/api/foo", ...)
+ *   app.post("/api/foo", ...)
+ *   server.route("/api/foo", ...)
+ *   addRoute("POST", "/api/foo", ...)
+ *   Any standalone string literal starting with /api/ that is NOT inside a
+ *   fetch() or axios call (those are consumers).
+ */
+function extractRoutePath(snippet: string): string | null {
+  // Explicit router/app/server method call:  *.METHOD("/api/...")
+  const methodCall = snippet.match(
+    /\w+\s*\.\s*(?:get|post|put|delete|patch|route)\s*\(\s*['"`](\/api\/[^'"`\s)]+)/i,
+  );
+  if (methodCall) return methodCall[1];
+
+  // addRoute("METHOD", "/api/...")  or  addRoute("/api/...")
+  const addRouteMatch = snippet.match(
+    /addRoute\s*\([^)]*?['"`](\/api\/[^'"`\s)]+)/i,
+  );
+  if (addRouteMatch) return addRouteMatch[1];
+
+  // Any plain string literal /api/... not part of a fetch/axios/import call
+  if (
+    !/fetch\s*\(/.test(snippet) &&
+    !/axios\s*[.(]/.test(snippet) &&
+    !/\bimport\b/.test(snippet)
+  ) {
+    const any = snippet.match(/['"`](\/api\/[^'"`\s)]+)/);
+    if (any) return any[1];
+  }
+
+  return null;
+}
+
+/**
+ * Extracts the `/api/...` path literal from a fetch/axios consumer line.
+ *
  * Handles:
  *   fetch("/api/foo")
  *   fetch(`${host}/api/foo`)
- *   fetch(`${BASE}/api/foo`)
+ *   axios.get(`${BASE}/api/foo`)
+ *   fetch(`${API_HOST}/api/accounts/` + id)
  */
 function extractFetchPath(snippet: string): string | null {
-  // Plain string: fetch("/api/...")  or  fetch('/api/...')
-  const plain = snippet.match(/fetch\s*\(\s*['"`](\/api\/[^'"`\s)]+)/i);
+  // Plain string: fetch("/api/...")  or  axios.*("/api/...")
+  const plain = snippet.match(
+    /(?:fetch|axios\s*(?:\.\s*\w+)?)\s*\(\s*['"`](\/api\/[^'"`\s)]+)/i,
+  );
   if (plain) return plain[1];
 
-  // Template literal: fetch(`${...}/api/...`)
-  const tmpl = snippet.match(/fetch\s*\(\s*`\$\{[^}]+\}(\/api\/[^'"`\s)]+)/i);
-  if (tmpl) return tmpl[1];
+  // Template literal with host prefix: fetch(`${...}/api/...`)
+  // Also capture an optional trailing `+ variable` for string concatenation
+  const tmpl = snippet.match(
+    /(?:fetch|axios\s*(?:\.\s*\w+)?)\s*\(\s*`\$\{[^}]+\}(\/api\/[^`]*?)`\s*(\+\s*\w+)?/i,
+  );
+  if (tmpl) {
+    const path = tmpl[1];
+    const concat = tmpl[2]; // e.g. "+ id"
+    return concat ? path + " " + concat.trim() : path;
+  }
 
   return null;
 }
@@ -110,33 +192,34 @@ export async function findCrossRepoLinks(
 
   // ── 1. HTTP routes ──────────────────────────────────────────────────────────
 
-  // Pattern matches: router.get("/api/...  router.post(`/api/...  etc.
+  // Matches: router/app/server method calls, addRoute(...), any /api/ string literal
   const HTTP_PROVIDER_PATTERN =
-    "router\\.(get|post|put|delete|patch)\\s*\\(\\s*['\"`]/api/";
-  // Pattern matches: fetch("/api/...  or  fetch(`${...}/api/...
+    "/api/";
+  // Matches: fetch/axios calls that contain /api/
   const HTTP_CONSUMER_PATTERN =
-    "fetch\\s*\\(\\s*['\"`](/api/|\\$\\{[^}]+\\}/api/)";
+    "(fetch|axios)\\s*[.(]";
 
-  /** repoPath → list of { path, evidence } */
+  /** repoPath → list of { path, normalizedPath, evidence } */
   const httpProviders = new Map<
     string,
-    Array<{ path: string; evidence: Evidence & { repoPath: string } }>
+    Array<{ path: string; normalizedPath: string; evidence: Evidence & { repoPath: string } }>
   >();
   const httpConsumers = new Map<
     string,
-    Array<{ path: string; evidence: Evidence & { repoPath: string } }>
+    Array<{ path: string; normalizedPath: string; evidence: Evidence & { repoPath: string } }>
   >();
 
   for (const repoPath of repoPaths) {
-    // Use -- *.ts *.js pathspec to restrict git grep to JS/TS files
-    const provR = runGitGrepPathspec(repoPath, "regex", HTTP_PROVIDER_PATTERN, ["*.ts", "*.js"]);
-    const provList: Array<{ path: string; evidence: Evidence & { repoPath: string } }> = [];
+    // Provider grep: any line with /api/ in .ts/.js files
+    const provR = runGitGrepPathspec(repoPath, "fixed", HTTP_PROVIDER_PATTERN, ["*.ts", "*.js"]);
+    const provList: Array<{ path: string; normalizedPath: string; evidence: Evidence & { repoPath: string } }> = [];
     if (!("error" in provR)) {
       for (const hit of provR.hits) {
         const path = extractRoutePath(hit.snippet);
         if (path) {
           provList.push({
             path,
+            normalizedPath: normalizePath(path),
             evidence: { repoPath, file: hit.file, line: hit.line, snippet: hit.snippet, tool: "git_grep" },
           });
         }
@@ -144,15 +227,18 @@ export async function findCrossRepoLinks(
     }
     if (provList.length) httpProviders.set(repoPath, provList);
 
-    // Consumers
+    // Consumer grep: any line with fetch/axios in .ts/.js files that also contains /api/
     const consR = runGitGrepPathspec(repoPath, "regex", HTTP_CONSUMER_PATTERN, ["*.ts", "*.js"]);
-    const consList: Array<{ path: string; evidence: Evidence & { repoPath: string } }> = [];
+    const consList: Array<{ path: string; normalizedPath: string; evidence: Evidence & { repoPath: string } }> = [];
     if (!("error" in consR)) {
       for (const hit of consR.hits) {
+        // Only lines that actually contain /api/
+        if (!hit.snippet.includes("/api/")) continue;
         const path = extractFetchPath(hit.snippet);
         if (path) {
           consList.push({
             path,
+            normalizedPath: normalizePath(path),
             evidence: { repoPath, file: hit.file, line: hit.line, snippet: hit.snippet, tool: "git_grep" },
           });
         }
@@ -161,14 +247,14 @@ export async function findCrossRepoLinks(
     if (consList.length) httpConsumers.set(repoPath, consList);
   }
 
-  // Pair providers with consumers across repos
+  // Pair providers with consumers across repos using normalized path matching
   for (const [provRepo, providers] of httpProviders) {
     for (const prov of providers) {
       let matched = false;
       for (const [consRepo, consumers] of httpConsumers) {
         if (consRepo === provRepo) continue; // must be a different repo
         for (const cons of consumers) {
-          if (cons.path === prov.path) {
+          if (pathsMatch(prov.normalizedPath, cons.normalizedPath)) {
             links.push({
               kind: "http_route",
               provider: prov.evidence,
@@ -453,7 +539,9 @@ function runGitGrepPathspec(
   const hits: GitGrepHit[] = [];
   for (const raw of (result.stdout ?? "").split("\n")) {
     if (!raw) continue;
-    const match = raw.match(/^([^:]+):(\d+):(.*)$/);
+    // Strip trailing \r from Windows CRLF line endings
+    const line_str = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+    const match = line_str.match(/^([^:]+):(\d+):(.*)$/);
     if (!match) continue;
     const [, file, lineStr, snippet] = match;
     const line = parseInt(lineStr, 10);

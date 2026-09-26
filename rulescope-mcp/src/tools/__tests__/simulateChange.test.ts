@@ -19,10 +19,12 @@ vi.mock("../../utils/runVitest.js", () => ({
   runVitest: vi.fn(),
 }));
 
-// readFile returns file content; writeFile is a no-op
+// readFile returns file content; writeFile and access are no-ops
 vi.mock("node:fs/promises", () => ({
   readFile: vi.fn(),
   writeFile: vi.fn().mockResolvedValue(undefined),
+  // access resolves (file exists) by default so writeRulescopeConfig produces the mergeConfig branch
+  access: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { simulateChange } from "../simulateChange.js";
@@ -108,11 +110,12 @@ describe("simulateChange — unit (mocked)", () => {
   it("does NOT call readFile/writeFile for an empty edits array (proof-only run)", async () => {
     await simulateChange({ repoPath: REPO_PATH, edits: [], testCode: TEST_CODE });
 
-    // writeFile is called for the test file but NOT for any source edit
-    // Only the test file write should have happened (once)
+    // writeFile is called for the test file and the rulescope config, but NOT for any source edit
     const writeCalls = (fsPromises.writeFile as unknown as Mock).mock.calls;
     const editWrites = writeCalls.filter(
-      (c) => !(c[0] as string).includes("__rulescope_sim__"),
+      (c) =>
+        !(c[0] as string).includes("__rulescope_sim__") &&
+        !(c[0] as string).includes("vitest.rulescope.config"),
     );
     expect(editWrites).toHaveLength(0);
   });

@@ -45,13 +45,13 @@ interface VitestJsonOutput {
  * @param cwd         Absolute path to the worktree directory to run vitest in.
  * @param nodeModules Absolute path to the node_modules directory that contains
  *                    vitest (typically the junction symlinked from the source repo).
- * @param testFile    Optional specific test file to pass to vitest.
+ * @param configFile  Optional vitest config file to pass via `--config`.
  * @param label       "before" or "after" — used to populate the SimulationRow fields.
  */
 export function runVitest(
   cwd: string,
   nodeModules: string,
-  testFile?: string,
+  configFile?: string,
   label: "before" | "after" = "before",
 ): VitestRunResult {
   const outputFile = join(
@@ -67,8 +67,8 @@ export function runVitest(
     "--reporter=json",
     `--outputFile=${outputFile}`,
   ];
-  if (testFile) {
-    args.push(testFile);
+  if (configFile) {
+    args.push("--config", configFile);
   }
 
   const r = spawnSync(process.execPath, args, {

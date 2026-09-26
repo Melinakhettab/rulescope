@@ -61,9 +61,19 @@ describe("applyMarkup", () => {
  * fs.rm({ recursive: true }) does not follow it into the real node_modules.
  */
 async function withSimFixture<T>(
+  fixtureName: string,
   fn: (repoPath: string) => Promise<T>,
+): Promise<T>;
+async function withSimFixture<T>(
+  fn: (repoPath: string) => Promise<T>,
+): Promise<T>;
+async function withSimFixture<T>(
+  fixtureOrFn: string | ((repoPath: string) => Promise<T>),
+  fn?: (repoPath: string) => Promise<T>,
 ): Promise<T> {
-  const repoPath = await makeFixtureRepo("sim-fixture");
+  const fixtureName = typeof fixtureOrFn === "string" ? fixtureOrFn : "sim-fixture";
+  const cb = typeof fixtureOrFn === "function" ? fixtureOrFn : fn!;
+  const repoPath = await makeFixtureRepo(fixtureName);
   const junctionDest = join(repoPath, "node_modules");
 
   try {
@@ -73,7 +83,7 @@ async function withSimFixture<T>(
   }
 
   try {
-    return await fn(repoPath);
+    return await cb(repoPath);
   } finally {
     // Unlink junction FIRST — before removeFixtureRepo does recursive rm
     try { unlinkSync(junctionDest); } catch { /* already gone */ }
@@ -173,6 +183,35 @@ describe("simulateChange — integration", () => {
       });
 
       expect(existsSync(nodeModulesBin)).toBe(true);
+    },
+    60_000,
+  );
+
+  it(
+    "works when the project vitest config restricts include to tests/**/*.test.ts",
+    async () => {
+      // The sim-fixture-restricted fixture has vitest.config.ts with:
+      //   test: { include: ["tests/**/*.test.ts"] }
+      // Without the vitest.rulescope.config.mjs override, vitest would not
+      // pick up __rulescope_sim__.test.ts (which lives at the repo root) and
+      // would produce 0 test rows.
+      await withSimFixture("sim-fixture-restricted", async (repoPath) => {
+        const result = await simulateChange({
+          repoPath,
+          edits: EDITS_CHANGE_MULTIPLIER,
+          testCode: TEST_CODE,
+        });
+
+        // Must have at least one test row — proves the sim file was executed
+        // despite the restrictive include pattern in the project's own config.
+        expect(result.rows).toHaveLength(1);
+
+        const row = result.rows[0];
+        expect(row.input).toBe("applies 10% markup to 100");
+        expect(row.before).toBe("passed");
+        expect(row.after).toMatch(/failed/);
+        expect(row.passed).toBe(false);
+      });
     },
     60_000,
   );
