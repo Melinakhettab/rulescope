@@ -1,7 +1,12 @@
 ﻿[
     {
+        "ticketId":  "LEGAL-31",
+        "title":  "GDPR Right to Erasure — delete all personal data (email, phone, IBAN) within 30 days",
+        "riskLevel":  "high"
+    },
+    {
         "ticketId":  "PROD-482",
-        "title":  "Raise daily transfer limit for Premium customers to €5,000",
+        "title":  "Raise daily transfer limit for Premium customers (€1,000 → €5,000)",
         "riskLevel":  "high"
     },
     {
