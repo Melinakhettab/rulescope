@@ -18,15 +18,18 @@ This file lists every prompt we sent to IBM Bob while building RuleScope, in ord
 | 03 | Melina | Agent | simulate_change (before/after simulation in a temporary worktree) | `kinetic_melina_task03_simulation_summary.png` | 14.10 |
 | 04 | Melina | Agent | save_impact_report + coverage_map | `kinetic_melina_task04_report_summary.png` | 2.97 |
 | 05 | Melina | 🔎 RuleScope | First real run on T1, which exposed a simulation bug | `kinetic_melina_task05_rulescope_T1_summary.png` | 1.51 |
-| 06 | Melina | 🔎 RuleScope | Impact Brief for T4 (UI-77) | `kinetic_melina_task06_rulescope_T4_summary.png` | … |
-| 07 | Melina | 🔎 RuleScope | Impact Brief for T3 (TECH-219) | `kinetic_melina_task07_rulescope_T3_summary.png` | … |
-| 08 | Melina | Agent | Report page redesign from our mockup | `kinetic_melina_task08_report_redesign_summary.png` | … |
-| 01 | Lisa | Agent | NovaBank demo repositories generator | `kinetic_lisakhettab_task01_demo_repos_summary.png` | … |
-| 02 | Lisa | Agent | Report web page (first version) | `kinetic_lisakhettab_task02_report_page_summary.png` | … |
-| 03 | Lisa | Agent | Engine fixes: cross-repo detection, coverage, simulation | `kinetic_lisakhettab_task03_fixes_summary.png` | … |
-| 04 | Lisa | Agent | Report page: search bar across reports | `kinetic_lisakhettab_task04_report_search_summary.png` | … |
-| 05 | Lisa | 🔎 RuleScope | Impact Brief for T1 (PROD-482) | `kinetic_lisakhettab_task05_rulescope_T1_summary.png` | … |
-| 06 | Lisa | 🔎 RuleScope | Impact Brief for T2 (LEGAL-31, PDF ticket) | `kinetic_lisakhettab_task06_rulescope_T2_summary.png` | … |
+| 06 | Melina | 🔎 RuleScope | Impact Brief for T4 (UI-77) | `kinetic_melina_task06_rulescope_T4_summary.png` | 1.66 |
+| 07 | Melina | 🔎 RuleScope | Impact Brief for T3 (TECH-219) | `kinetic_melina_task07_rulescope_T3_summary.png` | 1.49 |
+| 08 | Melina | Agent | Report page redesign from our mockup | `kinetic_melina_task08_report_redesign_summary.png` | 1.92 |
+| 01 | Lisa | Agent | NovaBank demo repositories generator | `kinetic_lisakhettab_task01_demo_repos_summary.png` | 0.75 |
+| 02 | Lisa | Agent | Report web page (first version) | `kinetic_lisakhettab_task02_report_page_summary.png` | 0.83 |
+| 03 | Lisa | Agent | Engine fixes: cross-repo detection, coverage, simulation | `kinetic_lisakhettab_task03_fixes_summary.png` | 16.49 |
+| 04 | Lisa | Agent | Report page: search bar across reports | `kinetic_lisakhettab_task04_report_search_summary.png` | 4.73 |
+| 05 | Lisa | 🔎 RuleScope | Impact Brief for T1 (PROD-482) | `kinetic_lisakhettab_task05_rulescope_T1_summary.png` | 2.04 |
+| 06 | Lisa | 🔎 RuleScope | Impact Brief for T2 (LEGAL-31, PDF ticket) | `kinetic_lisakhettab_task06_rulescope_T2_summary.png` | 3.19 |
+| | | | **Total** | | **63.51** |
+
+The four Impact Brief runs (T1 to T4) cost between 1.49 and 3.19 Bobcoins each.
 
 ---
 
@@ -268,6 +271,21 @@ FIX 3 — simulate_change: the simulation test file is ignored when the analyzed
 
 ---
 
+## Lisa, task 04: Report page search bar and fixes (Agent mode)
+
+**Prompt**
+```
+The previous edit of report/index.html was interrupted: the file may contain leftover conflict markers (lines starting with <<<<<<<, ======= or >>>>>>>) or half-applied changes. First check the file and remove any such leftovers, then make sure these changes are fully done:
+
+1) Top bar: no list of ticket tabs. Instead, a search field "Search a ticket ID (e.g. TECH-219)" next to the RuleScope wordmark. As the user types, show a dropdown of matching reports from report/data/index.json (match on ticketId and title, case-insensitive): colored risk dot, ticketId in mono, title in muted text. Enter or click opens it (?report=<ticketId>, update the URL without reload). Arrow keys navigate, Escape closes. Unknown ID → "No report for <ID>" under the field. The field shows the currently opened ticketId. Shortcut "/" focuses the search. Open the first report by default when no ?report= is given.
+2) "At a glance": never truncate "Effort" or "Blocked by" with "...". Show the full text; big serif size only for the short effort headline (text before the first comma), normal body text for the rest.
+3) "The safe way through": vertical list, one row per step (circle on a vertical line, red + "blocking" for sign-off/compliance/legal steps; step number, bold title = first sentence of the action, rest below; right column with targetFiles chips and the rationale in muted text). No overflow of long code or file names anywhere (min-width: 0 on grid/flex children, overflow-wrap: anywhere on mono text).
+Keep everything else and the visual style unchanged. Windows + PowerShell, no bash syntax. If the same error happens twice, stop and report.
+```
+**Result:** the search bar replaced the ticket tabs, and the "At a glance" and plan sections no longer cut text.
+
+---
+
 ## RuleScope runs on the demo tickets (🔎 RuleScope mode)
 
 Every analysis uses the same short prompt. Everything else comes from the custom mode, its rules and the `impact-brief` skill. Only the ticket file and the repository paths change.
@@ -317,20 +335,34 @@ After this run, we added one rule to the skill by hand. Bob had invented the rep
 ```
 Change request: @demo/tickets/T1-premium-transfer-limit.md
 Repositories to analyze:
-- C:/Users/lisak/rulescope/demo-workspace/novabank-api
-- C:/Users/lisak/rulescope/demo-workspace/novabank-mobile
+- C:/Users/khett/rulescope/demo-workspace/novabank-api
+- C:/Users/khett/rulescope/demo-workspace/novabank-mobile
 Produce the Impact Brief.
 ```
+**Result:**
+- It found the limit in both repositories: `DAILY_LIMIT` in the API and a duplicated client-side check in the mobile app (`validateTransfer.ts`), plus the hardcoded "€1,000" texts in a notification template and on the transfer screen.
+- It found the hidden blocker: a fraud rule sends every transfer above €2,000 to manual review, so Premium customers could not use their new limit without a Risk/Fraud decision.
+- The simulation of the naive one-line change (`DAILY_LIMIT = 5000`) shows Standard customers silently getting the higher limit and 3 existing tests breaking.
+- It left the card-payment limit (`cardLimits.ts`) alone: no false alarm.
+
+Report: `report/data/PROD-482.json`.
 
 
 ### Lisa, task 06: T2, a GDPR erasure request given as a PDF (LEGAL-31)
 ```
 Change request: @demo/tickets/T2-gdpr-deletion.pdf
 Repositories to analyze:
-- C:/Users/lisak/rulescope/demo-workspace/novabank-api
-- C:/Users/lisak/rulescope/demo-workspace/novabank-mobile
+- C:/Users/khett/rulescope/demo-workspace/novabank-api
+- C:/Users/khett/rulescope/demo-workspace/novabank-mobile
 Produce the Impact Brief.
 ```
+**Result:**
+- Bob read the PDF ticket directly.
+- It found every copy of the personal data: the customers table, the transfer log line that writes email and IBAN, and the mobile analytics events that send them to an external service.
+- It found the legal conflict: GDPR asks for erasure within 30 days, while the AML rule keeps transactions for 10 years. The brief asks Legal whether anonymising the data satisfies both before any code is written.
+- The simulation shows that fixing only one analytics function still leaks email and IBAN through the second one.
+
+Report: `report/data/LEGAL-31.json`.
 
 
 ---
@@ -365,6 +397,19 @@ Fix the "The safe way through" section in report/index.html: the horizontal time
 - Everywhere on the page, prevent overflow of long code/file names: add min-width: 0 on grid/flex children and overflow-wrap: anywhere on mono text.
 Keep all other sections and the visual style unchanged. Windows + PowerShell, no bash syntax.
 ```
+
+---
+
+## Review of the reports after the runs
+
+Before submitting, we audited every saved report against the real demo code and a real run of its tests. Most findings were right, but the audit found mistakes that the page made visible:
+- some evidence lines were off by one, two commit hashes came from another machine's build of the demo, and two test counts were wrong (17 API tests, not 22; the naive T1 change breaks 3 tests, not 5);
+- the "Effort" text and the "Files" counts sometimes disagreed, because Bob wrote the effort as free text and classified edited test files as "to check".
+
+We corrected those reports by hand and changed RuleScope so the same mistakes are caught automatically:
+- `save_impact_report` now rejects a report where an item has no severity, a file sits in two lists, or a file in the change plan is not classified;
+- it records the real size of each repository (`git ls-files`) and stores repository paths relative to the project, so a report reads the same on every machine;
+- the `impact-brief` skill now defines "to change" (every edited or created file, tests included) and keeps file counts out of the effort text.
 
 ---
 
