@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RuleScope — Impact Brief TECH-219</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f5f2ea;font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#14202e}
+a{color:#14202e;text-decoration:none}a:hover{color:#0b7a66}
+</style>
+</helmet>
+<div style="width: 1440px; height: 3080px; background: #f5f2ea; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: #14202e; font-variant-numeric: tabular-nums; display: flex; flex-direction: column">
+
+<!-- TOP BAR -->
+<header style="height: 64px; padding: 0 64px; display: flex; align-items: center; gap: 56px; border-bottom: 1px solid #ddd7c9; flex-shrink: 0">
+<span style="display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: -0.01em">
+<svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="6.5" stroke="#14202e" stroke-width="2"></circle><path d="M15 15l5 5" stroke="#14202e" stroke-width="2" stroke-linecap="round"></path><circle cx="10" cy="10" r="2" fill="#e8552f"></circle></svg>
+RuleScope
+</span>
+<nav aria-label="Impact briefs" style="display: flex; gap: 32px; font-size: 14px; height: 100%">
+<a href="#" style="display: flex; align-items: center; gap: 8px; color: #6b6557"><span style="width: 7px; height: 7px; border-radius: 50%; background: #c8272d"></span>PROD-482</a>
+<a href="#" style="display: flex; align-items: center; gap: 8px; color: #6b6557"><span style="width: 7px; height: 7px; border-radius: 50%; background: #e8742a"></span>LEGAL-31</a>
+<a href="#" aria-current="page" style="display: flex; align-items: center; gap: 8px; color: #14202e; font-weight: 600; border-bottom: 2px solid #14202e; margin-bottom: -1px"><span style="width: 7px; height: 7px; border-radius: 50%; background: #e8742a"></span>TECH-219</a>
+<a href="#" style="display: flex; align-items: center; gap: 8px; color: #6b6557"><span style="width: 7px; height: 7px; border-radius: 50%; background: #2e9e6b"></span>UI-77</a>
+</nav>
+<button type="button" style="margin-left: auto; height: 38px; padding: 0 18px; border-radius: 6px; border: none; background: #14202e; color: #f5f2ea; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer">Apply plan in Bob →</button>
+</header>
+
+<div style="padding: 48px 64px 72px; display: flex; flex-direction: column; gap: 64px">
+
+<!-- ============ 1. TICKET + SUMMARY ============ -->
+<section style="display: grid; grid-template-columns: 1fr 520px; gap: 56px; align-items: start">
+<div style="display: flex; flex-direction: column; gap: 16px">
+<span style="font-size: 13px; color: #6b6557">The request</span>
+<article style="background: #fffdf7; border: 1px solid #ddd7c9; border-radius: 4px; padding: 28px 32px; display: flex; flex-direction: column; gap: 16px; box-shadow: 6px 6px 0 #e9e3d4">
+<div style="display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #6b6557">
+<span>TECH-219</span><span>Platform team · 24 Sep</span>
+</div>
+<p style="margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: 28px; line-height: 1.32; font-weight: 400">Migrate the novabank-api database from <mark style="background: #ffe7a3; color: inherit; padding: 0 3px">SQLite</mark> to <mark style="background: #ffe7a3; color: inherit; padding: 0 3px">PostgreSQL</mark> before the production scale-up.</p>
+<p style="margin: 0; font-size: 13.5px; line-height: 1.6; color: #6b6557">Two lines. No list of files, no owner for the regulatory report, no mention of the test mocks.</p>
+</article>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 16px">
+<span style="font-size: 13px; color: #6b6557">At a glance</span>
+<div style="border-top: 2px solid #14202e; display: flex; flex-direction: column">
+<div style="display: grid; grid-template-columns: 160px 1fr; padding: 16px 0; border-bottom: 1px solid #ddd7c9; align-items: baseline">
+<span style="font-size: 13.5px; color: #6b6557">Risk</span>
+<span style="display: flex; align-items: baseline; gap: 12px"><span style="font-family: 'Fraunces', Georgia, serif; font-size: 30px; font-weight: 600; color: #e8742a">High</span><span style="font-size: 13.5px; color: #6b6557">1 critical · 2 high · 2 medium</span></span>
+</div>
+<div style="display: grid; grid-template-columns: 160px 1fr; padding: 16px 0; border-bottom: 1px solid #ddd7c9; align-items: baseline">
+<span style="font-size: 13.5px; color: #6b6557">Effort</span>
+<span style="display: flex; align-items: baseline; gap: 12px"><span style="font-family: 'Fraunces', Georgia, serif; font-size: 30px; font-weight: 600">1–2 days</span><span style="font-size: 13.5px; color: #6b6557">one pull request</span></span>
+</div>
+<div style="display: grid; grid-template-columns: 160px 1fr; padding: 16px 0; border-bottom: 1px solid #ddd7c9; align-items: baseline">
+<span style="font-size: 13.5px; color: #6b6557">Files</span>
+<span style="display: flex; align-items: baseline; gap: 12px"><span style="font-family: 'Fraunces', Georgia, serif; font-size: 30px; font-weight: 600">4 <span style="font-size: 18px; font-weight: 400">to change</span> · 3 <span style="font-size: 18px; font-weight: 400">to check</span></span></span>
+</div>
+<div style="display: grid; grid-template-columns: 160px 1fr; padding: 16px 0; border-bottom: 1px solid #ddd7c9; align-items: baseline">
+<span style="font-size: 13.5px; color: #6b6557">Blocked by</span>
+<span style="font-size: 15px"><span style="color: #c8272d; font-weight: 600">Compliance sign-off</span> on the AML report</span>
+</div>
+<div style="display: grid; grid-template-columns: 160px 1fr; padding: 16px 0; align-items: baseline">
+<span style="font-size: 13.5px; color: #6b6557">Scanned</span>
+<span style="font-size: 15px">26 files in 2 repositories · 4 min 12 s</span>
+</div>
+</div>
+</div>
+</section>
+
+<!-- ============ 2. VERDICT ============ -->
+<section style="display: flex; flex-direction: column; gap: 18px; max-width: 1100px">
+<span style="font-size: 13px; color: #6b6557">Verdict</span>
+<p style="margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: 46px; line-height: 1.2; font-weight: 400; letter-spacing: -0.01em">Replacing one SQLite function breaks <span style="text-decoration: underline; text-decoration-color: #e8742a; text-decoration-thickness: 5px; text-underline-offset: 8px">4 of 5 database calls</span> — including the <span style="text-decoration: underline; text-decoration-color: #c8272d; text-decoration-thickness: 5px; text-underline-offset: 8px">regulatory AML report</span>. All four must change together.</p>
+</section>
+
+<!-- ============ 3. BEFORE YOU START ============ -->
+<section style="display: flex; flex-direction: column; gap: 18px; padding: 32px 36px; background: #fffdf7; border: 1px solid #ddd7c9; border-left: 5px solid #c8272d; border-radius: 4px">
+<div style="display: flex; justify-content: space-between; align-items: baseline">
+<span style="font-family: 'Fraunces', Georgia, serif; font-size: 28px; font-weight: 600; letter-spacing: -0.01em">Settle these before you write code</span>
+<span style="font-size: 13.5px; color: #6b6557">3 open questions · 1 blocking</span>
+</div>
+<div style="display: flex; flex-direction: column">
+<div style="display: grid; grid-template-columns: 36px 150px 1fr; gap: 16px; padding: 14px 0; border-bottom: 1px solid #ebe5d8; align-items: baseline">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #c8272d; font-weight: 500">01</span>
+<span style="font-size: 14px; font-weight: 600; color: #c8272d">Compliance · blocking</span>
+<span style="font-size: 15px; line-height: 1.55">Who signs off the rewritten AML report query (COMP-7)? Carol Durand wrote it.</span>
+</div>
+<div style="display: grid; grid-template-columns: 36px 150px 1fr; gap: 16px; padding: 14px 0; border-bottom: 1px solid #ebe5d8; align-items: baseline">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #6b6557">02</span>
+<span style="font-size: 14px; font-weight: 600">Platform</span>
+<span style="font-size: 15px; line-height: 1.55">better-sqlite3 is imported in <span style="font-family: 'JetBrains Mono', monospace; font-size: 13.5px">db.ts:2</span> but missing from package.json. Where is it actually installed?</span>
+</div>
+<div style="display: grid; grid-template-columns: 36px 150px 1fr; gap: 16px; padding: 14px 0; align-items: baseline">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #6b6557">03</span>
+<span style="font-size: 14px; font-weight: 600">Platform</span>
+<span style="font-size: 15px; line-height: 1.55">No schema scripts exist. Who owns the PostgreSQL schema (SERIAL ids, TIMESTAMPTZ, primary keys)?</span>
+</div>
+</div>
+</section>
+
+<!-- ============ 4. MAP + FILE LIST ============ -->
+<section style="display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; justify-content: space-between; align-items: baseline">
+<span style="font-family: 'Fraunces', Georgia, serif; font-size: 28px; font-weight: 600; letter-spacing: -0.01em">Where it lands</span>
+<span style="display: flex; gap: 18px; font-size: 12.5px; color: #6b6557">
+<span style="display: flex; gap: 6px; align-items: center"><span style="width: 10px; height: 10px; background: #c8272d"></span>critical</span>
+<span style="display: flex; gap: 6px; align-items: center"><span style="width: 10px; height: 10px; background: #e8742a"></span>high</span>
+<span style="display: flex; gap: 6px; align-items: center"><span style="width: 10px; height: 10px; background: #e0a817"></span>medium</span>
+<span style="display: flex; gap: 6px; align-items: center"><span style="width: 10px; height: 10px; border: 1.5px dashed #6b6557; box-sizing: border-box"></span>to check</span>
+<span style="display: flex; gap: 6px; align-items: center"><span style="width: 10px; height: 10px; background: #d9d3c4"></span>unaffected</span>
+</span>
+</div>
+<div style="display: grid; grid-template-columns: 1fr 560px; gap: 40px; align-items: start">
+
+<svg width="752" height="500" viewBox="0 0 752 500" role="img" aria-label="Map of the two repositories. In novabank-api, amlReport.ts is critical, transfersRepo.ts is high, customersRepo.ts and db.ts are medium, two test files and package.json need checking, other files are unaffected. novabank-mobile is entirely unaffected and only calls the API over HTTP." style="background: #fffdf7; border: 1px solid #ddd7c9; border-radius: 4px">
+<text x="28" y="40" font-family="JetBrains Mono" font-size="13.5" font-weight="500" fill="#14202e">novabank-api</text>
+<text x="28" y="84" font-family="JetBrains Mono" font-size="11" fill="#6b6557">src/compliance</text>
+<rect x="28" y="94" width="380" height="58" fill="#c8272d"></rect>
+<text x="40" y="118" font-family="JetBrains Mono" font-size="11.5" fill="#ffffff">amlReport.ts</text>
+<text x="40" y="138" font-family="Plus Jakarta Sans" font-size="10.5" fill="#ffd9da">regulatory nightly report — not mentioned in the ticket</text>
+<text x="28" y="184" font-family="JetBrains Mono" font-size="11" fill="#6b6557">src/db</text>
+<rect x="28" y="194" width="150" height="58" fill="#e8742a"></rect>
+<text x="40" y="228" font-family="JetBrains Mono" font-size="11.5" fill="#ffffff">transfersRepo.ts</text>
+<rect x="186" y="194" width="136" height="58" fill="#e0a817"></rect>
+<text x="198" y="228" font-family="JetBrains Mono" font-size="11.5" fill="#14202e">customersRepo.ts</text>
+<rect x="330" y="194" width="78" height="58" fill="#e0a817"></rect>
+<text x="342" y="228" font-family="JetBrains Mono" font-size="11.5" fill="#14202e">db.ts</text>
+<text x="28" y="284" font-family="JetBrains Mono" font-size="11" fill="#6b6557">tests · package.json</text>
+<rect x="29" y="295" width="142" height="40" fill="none" stroke="#6b6557" stroke-width="1.5" stroke-dasharray="4 3"></rect>
+<text x="39" y="320" font-family="JetBrains Mono" font-size="11" fill="#14202e">transferService.test</text>
+<rect x="179" y="295" width="112" height="40" fill="none" stroke="#6b6557" stroke-width="1.5" stroke-dasharray="4 3"></rect>
+<text x="189" y="320" font-family="JetBrains Mono" font-size="11" fill="#14202e">routes.test</text>
+<rect x="299" y="295" width="108" height="40" fill="none" stroke="#6b6557" stroke-width="1.5" stroke-dasharray="4 3"></rect>
+<text x="309" y="320" font-family="JetBrains Mono" font-size="11" fill="#14202e">package.json</text>
+<text x="28" y="368" font-family="JetBrains Mono" font-size="11" fill="#6b6557">other modules</text>
+<rect x="28" y="378" width="68" height="36" fill="#d9d3c4"></rect>
+<rect x="102" y="378" width="68" height="36" fill="#d9d3c4"></rect>
+<rect x="176" y="378" width="54" height="36" fill="#d9d3c4"></rect>
+<rect x="236" y="378" width="54" height="36" fill="#d9d3c4"></rect>
+<rect x="296" y="378" width="112" height="36" fill="#d9d3c4"></rect>
+<text x="306" y="401" font-family="JetBrains Mono" font-size="11" fill="#14202e">routes.ts</text>
+<rect x="28" y="420" width="120" height="36" fill="#d9d3c4"></rect>
+<rect x="154" y="420" width="120" height="36" fill="#d9d3c4"></rect>
+<rect x="280" y="420" width="128" height="36" fill="#d9d3c4"></rect>
+<line x1="444" y1="24" x2="444" y2="476" stroke="#ddd7c9" stroke-width="1"></line>
+<text x="476" y="40" font-family="JetBrains Mono" font-size="13.5" font-weight="500" fill="#14202e">novabank-mobile</text>
+<text x="476" y="60" font-family="Plus Jakarta Sans" font-size="12" fill="#6b6557">entirely unaffected</text>
+<rect x="476" y="94" width="126" height="58" fill="#d9d3c4"></rect>
+<rect x="610" y="94" width="116" height="58" fill="#d9d3c4"></rect>
+<rect x="476" y="160" width="80" height="44" fill="#d9d3c4"></rect>
+<rect x="562" y="160" width="80" height="44" fill="#d9d3c4"></rect>
+<rect x="648" y="160" width="78" height="44" fill="#d9d3c4"></rect>
+<rect x="476" y="370" width="150" height="52" fill="#d9d3c4"></rect>
+<text x="488" y="401" font-family="JetBrains Mono" font-size="11" fill="#14202e">services/api.ts</text>
+<path d="M476 396 C 450 396, 440 396, 408 396" fill="none" stroke="#14202e" stroke-width="1.5" stroke-dasharray="5 4"></path>
+<circle cx="408" cy="396" r="3.5" fill="#14202e"></circle>
+<text x="476" y="446" font-family="Plus Jakarta Sans" font-size="12" fill="#6b6557">HTTP only — response shapes unchanged</text>
+</svg>
+
+<div style="display: flex; flex-direction: column">
+<div style="display: grid; grid-template-columns: 6px 1fr 90px; gap: 14px; padding: 0 0 10px; border-bottom: 2px solid #14202e; font-size: 12.5px; color: #6b6557">
+<span></span><span>Change — novabank-api</span><span style="text-align: right">Lines</span>
+</div>
+<div style="display: grid; grid-template-columns: 6px 1fr 90px; gap: 14px; padding: 14px 0; border-bottom: 1px solid #ddd7c9; align-items: start">
+<span style="height: 40px; background: #c8272d"></span>
+<span style="display: flex; flex-direction: column; gap: 4px"><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px">src/compliance/amlReport.ts</span><span style="font-size: 13px; color: #6b6557">datetime('now', '-24 hours') → NOW() - INTERVAL '24 hours'</span></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; text-align: right">20–26</span>
+</div>
+<div style="display: grid; grid-template-columns: 6px 1fr 90px; gap: 14px; padding: 14px 0; border-bottom: 1px solid #ddd7c9; align-items: start">
+<span style="height: 40px; background: #e8742a"></span>
+<span style="display: flex; flex-direction: column; gap: 4px"><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px">src/db/transfersRepo.ts</span><span style="font-size: 13px; color: #6b6557">datetime → NOW(), strftime → DATE(), ? → $1…$4</span></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; text-align: right">13–28</span>
+</div>
+<div style="display: grid; grid-template-columns: 6px 1fr 90px; gap: 14px; padding: 14px 0; border-bottom: 1px solid #ddd7c9; align-items: start">
+<span style="height: 40px; background: #e0a817"></span>
+<span style="display: flex; flex-direction: column; gap: 4px"><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px">src/db/customersRepo.ts</span><span style="font-size: 13px; color: #6b6557">INSERT OR REPLACE → ON CONFLICT (id) DO UPDATE</span></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; text-align: right">23–27</span>
+</div>
+<div style="display: grid; grid-template-columns: 6px 1fr 90px; gap: 14px; padding: 14px 0; border-bottom: 1px solid #ddd7c9; align-items: start">
+<span style="height: 40px; background: #e0a817"></span>
+<span style="display: flex; flex-direction: column; gap: 4px"><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px">src/db/db.ts</span><span style="font-size: 13px; color: #6b6557">wire pg.Pool instead of better-sqlite3</span></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; text-align: right">1–2</span>
+</div>
+<div style="display: grid; grid-template-columns: 6px 1fr 90px; gap: 14px; padding: 22px 0 10px; border-bottom: 2px solid #14202e; font-size: 12.5px; color: #6b6557">
+<span></span><span>Check</span><span></span>
+</div>
+<div style="display: grid; grid-template-columns: 6px 1fr; gap: 14px; padding: 12px 0; border-bottom: 1px solid #ddd7c9; align-items: center">
+<span style="height: 20px; border: 1.5px dashed #6b6557; box-sizing: border-box"></span>
+<span style="font-size: 13.5px"><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px">tests/transferService.test.ts</span>, <span style="font-family: 'JetBrains Mono', monospace; font-size: 13px">tests/routes.test.ts</span> <span style="color: #6b6557">— mocks match SQLite syntax</span></span>
+</div>
+<div style="display: grid; grid-template-columns: 6px 1fr; gap: 14px; padding: 12px 0; align-items: center">
+<span style="height: 20px; border: 1.5px dashed #6b6557; box-sizing: border-box"></span>
+<span style="font-size: 13.5px"><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px">package.json</span> <span style="color: #6b6557">— add pg, remove better-sqlite3</span></span>
+</div>
+</div>
+</div>
+</section>
+
+<!-- ============ 5. SIMULATION ============ -->
+<section style="display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; justify-content: space-between; align-items: baseline">
+<span style="font-family: 'Fraunces', Georgia, serif; font-size: 28px; font-weight: 600; letter-spacing: -0.01em">The proof</span>
+<span style="font-size: 13.5px; color: #6b6557">Simulated in a temporary copy with vitest — the real code was never touched</span>
+</div>
+<div style="display: grid; grid-template-columns: 380px 1fr; gap: 48px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div style="background: #14202e; border-radius: 4px; padding: 20px 22px; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.9; color: #c9d3de">
+<div style="color: #7f8fa3; margin-bottom: 6px">src/db/transfersRepo.ts</div>
+<div style="color: #ff9d86">− VALUES (?, ?, ?, ?, datetime('now'))</div>
+<div style="color: #7fdcb5">+ VALUES (?, ?, ?, ?, NOW())</div>
+</div>
+<p style="margin: 0; font-size: 13.5px; line-height: 1.6; color: #6b6557">The one-line fix a developer would try first, run against a database fake that rejects SQLite syntax.</p>
+</div>
+<div style="display: flex; flex-direction: column">
+<div style="display: grid; grid-template-columns: 6px 180px 76px 76px 1fr; gap: 18px; padding: 0 0 10px; border-bottom: 2px solid #14202e; font-size: 12.5px; color: #6b6557">
+<span></span><span>Call</span><span>Before</span><span>After</span><span>Consequence</span>
+</div>
+<div style="display: grid; grid-template-columns: 6px 180px 76px 76px 1fr; gap: 18px; padding: 15px 0; border-bottom: 1px solid #ddd7c9; align-items: center; font-size: 14px">
+<span style="height: 34px; background: #c8272d"></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px">getAmlCandidates</span>
+<span style="color: #2e7d57">passes</span><span style="color: #c8272d; font-weight: 600">fails</span>
+<span>The nightly anti-money-laundering report stops.</span>
+</div>
+<div style="display: grid; grid-template-columns: 6px 180px 76px 76px 1fr; gap: 18px; padding: 15px 0; border-bottom: 1px solid #ddd7c9; align-items: center; font-size: 14px">
+<span style="height: 34px; background: #e8742a"></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px">insertTransfer</span>
+<span style="color: #2e7d57">passes</span><span style="color: #c8272d; font-weight: 600">fails</span>
+<span>Every transfer is rejected (<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px">?</span> placeholders).</span>
+</div>
+<div style="display: grid; grid-template-columns: 6px 180px 76px 76px 1fr; gap: 18px; padding: 15px 0; border-bottom: 1px solid #ddd7c9; align-items: center; font-size: 14px">
+<span style="height: 34px; background: #e8742a"></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px">getDailyTotal</span>
+<span style="color: #2e7d57">passes</span><span style="color: #c8272d; font-weight: 600">fails</span>
+<span>The daily transfer limit can no longer be checked.</span>
+</div>
+<div style="display: grid; grid-template-columns: 6px 180px 76px 76px 1fr; gap: 18px; padding: 15px 0; border-bottom: 1px solid #ddd7c9; align-items: center; font-size: 14px">
+<span style="height: 34px; background: #e0a817"></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px">upsertCustomer</span>
+<span style="color: #2e7d57">passes</span><span style="color: #c8272d; font-weight: 600">fails</span>
+<span>Customer profile updates fail.</span>
+</div>
+<div style="display: grid; grid-template-columns: 6px 180px 76px 76px 1fr; gap: 18px; padding: 15px 0; align-items: center; font-size: 14px">
+<span style="height: 34px; background: #d9d3c4"></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px">getCustomer</span>
+<span style="color: #2e7d57">passes</span><span style="color: #2e7d57">passes</span>
+<span style="color: #6b6557">Standard SQL, unaffected.</span>
+</div>
+</div>
+</div>
+</section>
+
+<!-- ============ 6. PLAN ============ -->
+<section style="display: flex; flex-direction: column; gap: 28px">
+<div style="display: flex; justify-content: space-between; align-items: baseline">
+<span style="font-family: 'Fraunces', Georgia, serif; font-size: 28px; font-weight: 600; letter-spacing: -0.01em">The safe way through</span>
+<span style="font-size: 13.5px; color: #6b6557">One pull request, in this order</span>
+</div>
+<div style="position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px">
+<div style="position: absolute; left: 0; right: 0; top: 11px; height: 2px; background: #14202e"></div>
+<div style="display: flex; flex-direction: column; gap: 12px; position: relative">
+<span style="width: 24px; height: 24px; border-radius: 50%; background: #f5f2ea; border: 2px solid #14202e; box-sizing: border-box"></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #6b6557">01</span>
+<span style="font-size: 16px; font-weight: 600; line-height: 1.4">Add the pg driver and write the schema script</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #6b6557">package.json · migrations/001_initial.sql</span>
+<span style="font-size: 13px; padding-top: 8px; border-top: 1px solid #ddd7c9">Talk to Alice Martin, who built the data layer</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px; position: relative">
+<span style="width: 24px; height: 24px; border-radius: 50%; background: #f5f2ea; border: 2px solid #14202e; box-sizing: border-box"></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #6b6557">02</span>
+<span style="font-size: 16px; font-weight: 600; line-height: 1.4">Rewrite the three data-layer files in one pass</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #6b6557">db.ts · transfersRepo.ts · customersRepo.ts</span>
+<span style="font-size: 13px; color: #6b6557; padding-top: 8px; border-top: 1px solid #ddd7c9">Numbered placeholders, NOW(), DATE(), ON CONFLICT</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px; position: relative">
+<span style="width: 24px; height: 24px; border-radius: 50%; background: #c8272d"></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #c8272d; font-weight: 500">03 · blocking</span>
+<span style="font-size: 16px; font-weight: 600; line-height: 1.4">Rewrite the AML query, then get compliance sign-off</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #6b6557">compliance/amlReport.ts</span>
+<span style="font-size: 13px; padding-top: 8px; border-top: 1px solid #ddd7c9">Talk to Carol Durand, Compliance, who wrote it</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px; position: relative">
+<span style="width: 24px; height: 24px; border-radius: 50%; background: #f5f2ea; border: 2px solid #14202e; box-sizing: border-box"></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #6b6557">04</span>
+<span style="font-size: 16px; font-weight: 600; line-height: 1.4">Update the test mocks and rerun the suite</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #6b6557">transferService.test.ts · routes.test.ts</span>
+<span style="font-size: 13px; color: #6b6557; padding-top: 8px; border-top: 1px solid #ddd7c9">22 existing tests must stay green</span>
+</div>
+</div>
+</section>
+
+<!-- ============ 7. DETAILS ============ -->
+<section style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 48px; padding-top: 36px; border-top: 2px solid #14202e">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<span style="font-size: 13px; font-weight: 600">Entry points touched</span>
+<span style="display: flex; flex-direction: column; gap: 3px"><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px">POST /api/transfers</span><span style="font-size: 13px; color: #6b6557">routes.ts:43 → insertTransfer, getDailyTotal</span></span>
+<span style="display: flex; flex-direction: column; gap: 3px"><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px">AML nightly job</span><span style="font-size: 13px; color: #6b6557">amlReport.ts → getAmlCandidates</span></span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 14px">
+<span style="font-size: 13px; font-weight: 600">Test coverage</span>
+<p style="margin: 0; font-size: 14px; line-height: 1.6">Not measured for this run. The three files to review by hand first: <span style="font-family: 'JetBrains Mono', monospace; font-size: 13px">amlReport.ts</span>, <span style="font-family: 'JetBrains Mono', monospace; font-size: 13px">transfersRepo.ts</span>, <span style="font-family: 'JetBrains Mono', monospace; font-size: 13px">customersRepo.ts</span>.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 14px">
+<span style="font-size: 13px; font-weight: 600">Checked and left alone</span>
+<p style="margin: 0; font-size: 14px; line-height: 1.6">The whole mobile app, transfer limits, fraud rules, card limits, retention policy and API routes — no SQLite-specific code in any of them.</p>
+</div>
+</section>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":3080}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
