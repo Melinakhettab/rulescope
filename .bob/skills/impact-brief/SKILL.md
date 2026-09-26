@@ -41,5 +41,6 @@ Each subagent:
 - Set createdAt to the real current date and time: run the command `Get-Date -Format o` and use its output. Never invent a date.
 - filesToChange lists only application source files (never test files); put test files that must be updated in filesToCheck. The effort estimate must use the same file count as filesToChange.
 - Call save_impact_report with the full ImpactReport (ticketId = the ticket ID, e.g. PROD-482).
+- Then update report/data/index.json: add or replace the entry { "ticketId", "title", "riskLevel" } for this report, keep the other entries, and never list sample.json.
 - Present the brief in chat: request + open questions, entry points, files to CHANGE / CHECK / NOT AFFECTED, contradictions, simulation table, git history, coverage gaps, risk & effort, plan.
 - End by offering to apply the plan in Agent mode.
