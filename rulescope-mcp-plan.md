@@ -151,7 +151,7 @@ Implement the tool that runs vitest in a temporary git worktree before and after
 
 ## Sub-Task 5 — Report Persistence + Coverage (`save_impact_report` + `coverage_map`)
 
-**Status**: [ ] pending
+**Status**: [x] done
 
 **Intent**  
 Implement the tool that validates and saves the `ImpactReport` JSON to disk, and the SHOULD-priority `coverage_map` tool.
@@ -164,11 +164,11 @@ Implement the tool that validates and saves the `ImpactReport` JSON to disk, and
 - `report/data/` is **committed** — do NOT add it to `.gitignore`.
 
 **Todo List**
-- [ ] Implement `saveImpactReport.ts` — validate schema + sanitize ticketId + write JSON
-- [ ] Implement `coverageMap.ts` — run full vitest coverage, filter output to requested files, return
-- [ ] Wire both tools in `index.ts`
-- [ ] Write unit tests (including ticketId sanitization edge cases)
-- [ ] `tsc --noEmit` and vitest tests pass
+- [x] Implement `saveImpactReport.ts` — validate schema + sanitize ticketId + write JSON
+- [x] Implement `coverageMap.ts` — run full vitest coverage, filter output to requested files, return
+- [x] Wire both tools in `index.ts`
+- [x] Write unit tests (including ticketId sanitization edge cases)
+- [x] `tsc --noEmit` and vitest tests pass
 
 **Relevant Context**
 - `docs/DESIGN.md §5.5` — `save_impact_report` spec
