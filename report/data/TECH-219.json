@@ -1,0 +1,456 @@
+{
+  "$schema": "https://rulescope/impact-report/v1",
+  "ticketId": "TECH-219",
+  "title": "Migrate novabank-api database from SQLite to PostgreSQL",
+  "createdAt": "2026-09-26T16:40:00.000Z",
+  "requestSummary": "Migrate the novabank-api backend database driver from better-sqlite3 (SQLite) to the pg (node-postgres) driver before production scale-up. Four source files contain SQLite-specific SQL syntax that must be rewritten. The mobile app (novabank-mobile) is not affected — it is a pure HTTP client.",
+  "openQuestions": [
+    "Where is better-sqlite3 actually declared/installed? package.json has no db driver — is there a monorepo root or Dockerfile?",
+    "How is initDb() called in production? No server entry point (index.ts) was found in the scanned files.",
+    "Are there schema DDL files (CREATE TABLE) or migration scripts? None were found — PostgreSQL requires proper types (SERIAL/BIGSERIAL vs INTEGER, TIMESTAMPTZ vs TEXT).",
+    "Should numbered pg placeholders ($1, $2, ...) be used directly, or should a query builder (knex) abstract them?",
+    "Should tests continue using the in-memory fake, or add a test-container PostgreSQL for full integration coverage?",
+    "The AML report (COMP-7) was added by Carol Durand (compliance team). They must review and sign off on the SQL change before merge — this is a regulatory query."
+  ],
+  "entryPoints": [
+    {
+      "id": "entry_point:post-api-transfers",
+      "kind": "entry_point",
+      "label": "POST /api/transfers",
+      "description": "HTTP route that triggers insertTransfer() and getDailyTotal() — both contain SQLite-specific SQL. This is the main write path impacted by the migration.",
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "evidence": [
+        {
+          "file": "src/api/routes.ts",
+          "line": 43,
+          "snippet": "addRoute(\"POST\", \"/api/transfers\", async (req) => {",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/db/transfersRepo.ts",
+          "line": 16,
+          "snippet": "VALUES (?, ?, ?, ?, datetime('now'))",
+          "tool": "git_grep"
+        }
+      ]
+    },
+    {
+      "id": "entry_point:aml-nightly-report",
+      "kind": "entry_point",
+      "label": "AML nightly report — COMP-7",
+      "description": "Regulatory compliance query using SQLite datetime arithmetic. Must be rewritten for PostgreSQL. Requires compliance team sign-off.",
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "evidence": [
+        {
+          "file": "src/compliance/amlReport.ts",
+          "line": 1,
+          "snippet": "// AML nightly report - regulatory requirement COMP-7",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/compliance/amlReport.ts",
+          "line": 26,
+          "snippet": "AND createdAt >= datetime('now', '-24 hours')",
+          "tool": "git_grep"
+        }
+      ]
+    }
+  ],
+  "repoPaths": [
+    "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+    "C:/Users/khett/rulescope/demo-workspace/novabank-mobile"
+  ],
+  "filesToChange": {
+    "C:/Users/khett/rulescope/demo-workspace/novabank-api": [
+      "src/db/db.ts",
+      "src/db/transfersRepo.ts",
+      "src/db/customersRepo.ts",
+      "src/compliance/amlReport.ts"
+    ],
+    "C:/Users/khett/rulescope/demo-workspace/novabank-mobile": []
+  },
+  "filesToCheck": {
+    "C:/Users/khett/rulescope/demo-workspace/novabank-api": [
+      "tests/transferService.test.ts",
+      "tests/routes.test.ts",
+      "package.json"
+    ],
+    "C:/Users/khett/rulescope/demo-workspace/novabank-mobile": []
+  },
+  "filesNotAffected": {
+    "C:/Users/khett/rulescope/demo-workspace/novabank-api": [
+      "src/transfers/transferService.ts",
+      "src/transfers/limits.ts",
+      "src/fraud/rules.ts",
+      "src/cards/cardLimits.ts",
+      "src/retention/policy.ts",
+      "src/api/routes.ts",
+      "tests/fraud.test.ts",
+      "tests/cards.test.ts",
+      "tests/limits.test.ts",
+      "tests/retention.test.ts"
+    ],
+    "C:/Users/khett/rulescope/demo-workspace/novabank-mobile": [
+      "src/config.ts",
+      "src/services/api.ts",
+      "src/screens/TransferScreen.ts",
+      "src/transfers/validateTransfer.ts",
+      "src/analytics/events.ts",
+      "tests/api.test.ts",
+      "tests/TransferScreen.test.ts",
+      "tests/analytics.test.ts"
+    ]
+  },
+  "items": [
+    {
+      "id": "technical_dependency:sqlite-db-init",
+      "kind": "technical_dependency",
+      "label": "SQLite-backed db.ts — driver comment and interface",
+      "description": "The module header references better-sqlite3 as the runtime driver. The initDb()/db_query() abstraction is driver-agnostic; only comments need updating to PostgreSQL.",
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "evidence": [
+        {
+          "file": "src/db/db.ts",
+          "line": 1,
+          "snippet": "// SQLite-backed query interface",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/db/db.ts",
+          "line": 2,
+          "snippet": "// Uses better-sqlite3 at runtime; tests inject a fake",
+          "tool": "git_grep"
+        }
+      ]
+    },
+    {
+      "id": "technical_dependency:sqlite-datetime-now",
+      "kind": "technical_dependency",
+      "label": "datetime('now') in INSERT (transfersRepo.ts:16)",
+      "description": "SQLite-specific current-timestamp function used in INSERT INTO transfers. PostgreSQL equivalent: NOW() or CURRENT_TIMESTAMP. Also requires changing ? positional params to $1..$4.",
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "evidence": [
+        {
+          "file": "src/db/transfersRepo.ts",
+          "line": 13,
+          "snippet": "// SQLite-specific: AUTOINCREMENT, datetime('now')",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/db/transfersRepo.ts",
+          "line": 16,
+          "snippet": "VALUES (?, ?, ?, ?, datetime('now'))",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/db/transfersRepo.ts",
+          "line": 12,
+          "snippet": "export function insertTransfer(t: TransferRecord): void {",
+          "tool": "git_blame"
+        }
+      ]
+    },
+    {
+      "id": "technical_dependency:sqlite-strftime",
+      "kind": "technical_dependency",
+      "label": "strftime('%Y-%m-%d', createdAt) in getDailyTotal (transfersRepo.ts:28)",
+      "description": "SQLite-specific date formatting function used to filter transfers by calendar day. PostgreSQL equivalent: DATE(createdAt) or TO_CHAR(createdAt::date, 'YYYY-MM-DD'). Also requires ? → $1, $2.",
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "evidence": [
+        {
+          "file": "src/db/transfersRepo.ts",
+          "line": 28,
+          "snippet": "AND strftime('%Y-%m-%d', createdAt) = ?",
+          "tool": "git_grep"
+        }
+      ]
+    },
+    {
+      "id": "technical_dependency:sqlite-insert-or-replace",
+      "kind": "technical_dependency",
+      "label": "INSERT OR REPLACE in upsertCustomer (customersRepo.ts:25)",
+      "description": "SQLite-specific upsert syntax. PostgreSQL requires INSERT ... ON CONFLICT (id) DO UPDATE SET ... The customers table must have a PRIMARY KEY or UNIQUE constraint on id for ON CONFLICT to work.",
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "evidence": [
+        {
+          "file": "src/db/customersRepo.ts",
+          "line": 23,
+          "snippet": "// SQLite-specific: INSERT OR REPLACE",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/db/customersRepo.ts",
+          "line": 25,
+          "snippet": "INSERT OR REPLACE INTO customers (id, name, email, phone, iban, tier)",
+          "tool": "git_grep"
+        }
+      ]
+    },
+    {
+      "id": "technical_dependency:sqlite-aml-datetime-interval",
+      "kind": "technical_dependency",
+      "label": "datetime('now', '-24 hours') in AML report (amlReport.ts:26) — COMP-7",
+      "description": "SQLite-specific rolling 24-hour window expression in the regulatory AML compliance query. PostgreSQL equivalent: NOW() - INTERVAL '24 hours'. Authored by Carol Durand (compliance). Requires compliance team review.",
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "evidence": [
+        {
+          "file": "src/compliance/amlReport.ts",
+          "line": 20,
+          "snippet": "// SQLite-specific: datetime('now', '-24 hours')",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/compliance/amlReport.ts",
+          "line": 26,
+          "snippet": "AND createdAt >= datetime('now', '-24 hours')",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/compliance/amlReport.ts",
+          "line": 1,
+          "snippet": "// AML nightly report - regulatory requirement COMP-7",
+          "tool": "git_blame"
+        }
+      ],
+      "issues": [
+        {
+          "kind": "contradiction",
+          "description": "Regulatory requirement COMP-7 was implemented by compliance team (Carol Durand, 2024-05-18). Any SQL change must be reviewed by that team before merge.",
+          "evidence": [
+            {
+              "file": "src/compliance/amlReport.ts",
+              "line": 1,
+              "snippet": "// AML nightly report - regulatory requirement COMP-7",
+              "tool": "git_blame"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "config:missing-pg-driver",
+      "kind": "config",
+      "label": "Missing pg driver in package.json",
+      "description": "package.json declares no database driver. better-sqlite3 is referenced in db.ts but not in package.json. pg and @types/pg must be added. A schema DDL and migration tool are also absent.",
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "evidence": [
+        {
+          "file": "package.json",
+          "line": 1,
+          "snippet": "devDependencies: { vitest } — no runtime db driver",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/db/db.ts",
+          "line": 2,
+          "snippet": "// Uses better-sqlite3 at runtime; tests inject a fake",
+          "tool": "git_grep"
+        }
+      ],
+      "issues": [
+        {
+          "kind": "contradiction",
+          "description": "better-sqlite3 referenced in comments but absent from package.json. Actual installation location unknown.",
+          "evidence": [
+            {
+              "file": "src/db/db.ts",
+              "line": 2,
+              "snippet": "// Uses better-sqlite3 at runtime; tests inject a fake",
+              "tool": "git_grep"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cross_repo_link:api-transfers-mobile",
+      "kind": "cross_repo_link",
+      "label": "POST /api/transfers — provider novabank-api, consumer novabank-mobile",
+      "description": "The mobile app calls POST /api/transfers via HTTP. The DB migration does not change the HTTP contract — response shape and status codes are unchanged. NOT AFFECTED.",
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "linkedItemId": null,
+      "evidence": [
+        {
+          "file": "src/api/routes.ts",
+          "line": 43,
+          "snippet": "addRoute(\"POST\", \"/api/transfers\", async (req) => {",
+          "tool": "git_grep"
+        }
+      ]
+    }
+  ],
+  "simulations": [
+    {
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "edits": [],
+      "testCode": "// Baseline: all 5 SQLite-dialect tests pass under in-memory fake",
+      "rows": [
+        {
+          "input": "insertTransfer — datetime('now') used for createdAt",
+          "before": "passed",
+          "after": "passed",
+          "passed": true
+        },
+        {
+          "input": "getDailyTotal — strftime('%Y-%m-%d', createdAt) for date filter",
+          "before": "passed",
+          "after": "passed",
+          "passed": true
+        },
+        {
+          "input": "upsertCustomer — INSERT OR REPLACE syntax",
+          "before": "passed",
+          "after": "passed",
+          "passed": true
+        },
+        {
+          "input": "getAmlCandidates — datetime('now', '-24 hours') for 24h window",
+          "before": "passed",
+          "after": "passed",
+          "passed": true
+        },
+        {
+          "input": "getAmlCandidates — does NOT return transfers below AML threshold",
+          "before": "passed",
+          "after": "passed",
+          "passed": true
+        }
+      ],
+      "rawOutput": "Baseline run: all 22 existing tests pass",
+      "worktreePath": "temporary (cleaned up)"
+    },
+    {
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "edits": [
+        {
+          "file": "src/db/transfersRepo.ts",
+          "search": "     VALUES (?, ?, ?, ?, datetime('now'))",
+          "replace": "     VALUES ($1, $2, $3, $4, NOW())"
+        }
+      ],
+      "testCode": "// Naive one-line fix: only insertTransfer updated. PG-simulating fake rejects remaining SQLite constructs.",
+      "rows": [
+        {
+          "input": "insertTransfer — partial fix: NOW() but ? placeholders still present (PG rejects)",
+          "before": "failed (expected datetime throw)",
+          "after": "❌ fails — PG driver rejects ? placeholders in INSERT",
+          "passed": false
+        },
+        {
+          "input": "getDailyTotal — strftime('%Y-%m-%d', createdAt) NOT updated",
+          "before": "passed",
+          "after": "❌ throws: function strftime does not exist",
+          "passed": false
+        },
+        {
+          "input": "upsertCustomer — INSERT OR REPLACE NOT updated",
+          "before": "passed",
+          "after": "❌ throws: syntax error at or near OR",
+          "passed": false
+        },
+        {
+          "input": "getAmlCandidates — datetime('now', '-24 hours') NOT updated",
+          "before": "passed",
+          "after": "❌ throws: syntax error at or near datetime",
+          "passed": false
+        },
+        {
+          "input": "getCustomer — plain SELECT, standard SQL — unaffected",
+          "before": "passed",
+          "after": "✅ unchanged",
+          "passed": true
+        }
+      ],
+      "rawOutput": "Naive one-line change reveals 3 additional broken SQLite constructs across 2 other files",
+      "worktreePath": "temporary (cleaned up)"
+    }
+  ],
+  "coverage": [
+    {
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "fileCoverage": {},
+      "functionCoverage": {},
+      "uncoveredFiles": [
+        "src/compliance/amlReport.ts",
+        "src/db/transfersRepo.ts",
+        "src/db/customersRepo.ts"
+      ]
+    }
+  ],
+  "riskLevel": "high",
+  "effortEstimate": "4 source files to change, ~15 SQL lines, plus package.json, DDL schema, and test updates. Estimated 1–2 days including compliance review.",
+  "riskRationale": "HIGH: (1) amlReport.ts is a regulatory query (COMP-7) — wrong SQL silently returns wrong results without crashing; (2) getDailyTotal drives the daily transfer limit enforcement — a date-comparison bug would silently disable the fraud limit; (3) no migration scripts or DDL exist; (4) @vitest/coverage-v8 is absent so test coverage is unmeasured.",
+  "changePlan": [
+    {
+      "order": 1,
+      "action": "Add pg driver: npm install pg && npm install -D @types/pg. Confirm and remove better-sqlite3 from wherever it is installed.",
+      "rationale": "pg is the standard node-postgres driver. @types/pg provides TypeScript types.",
+      "targetFiles": [
+        "package.json"
+      ],
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api"
+    },
+    {
+      "order": 2,
+      "action": "Write PostgreSQL schema DDL (migrations/001_initial.sql): CREATE TABLE transfers with SERIAL id, TIMESTAMPTZ createdAt DEFAULT NOW(); CREATE TABLE customers with TEXT id PRIMARY KEY; CREATE TABLE accounts.",
+      "rationale": "PostgreSQL requires explicit SERIAL/BIGSERIAL for auto-increment and TIMESTAMPTZ for timezone-aware timestamps. The ON CONFLICT upsert requires a PRIMARY KEY on customers.id.",
+      "targetFiles": [
+        "migrations/001_initial.sql"
+      ],
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api"
+    },
+    {
+      "order": 3,
+      "action": "Update src/db/db.ts: replace better-sqlite3 comment with PostgreSQL; wire up pg.Pool; update db_query() to call pool.query() returning rows array.",
+      "rationale": "The abstraction layer (initDb/db_query) is driver-agnostic but comments and runtime wiring must point to pg.",
+      "targetFiles": [
+        "src/db/db.ts"
+      ],
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api"
+    },
+    {
+      "order": 4,
+      "action": "Update src/db/transfersRepo.ts: (a) ? → $1, $2, $3, $4 in INSERT; (b) datetime('now') → NOW(); (c) strftime('%Y-%m-%d', createdAt) → DATE(createdAt); (d) ? → $1, $2 in getDailyTotal.",
+      "rationale": "PG uses numbered $N placeholders; datetime() and strftime() are SQLite-only. DATE() is standard SQL supported by PostgreSQL.",
+      "targetFiles": [
+        "src/db/transfersRepo.ts"
+      ],
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api"
+    },
+    {
+      "order": 5,
+      "action": "Update src/db/customersRepo.ts: INSERT OR REPLACE INTO customers → INSERT INTO customers ... ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, email=EXCLUDED.email, phone=EXCLUDED.phone, iban=EXCLUDED.iban, tier=EXCLUDED.tier. Update ? → $1..$6.",
+      "rationale": "ON CONFLICT DO UPDATE is the standard PostgreSQL upsert. Requires customers.id to be a PRIMARY KEY (step 2).",
+      "targetFiles": [
+        "src/db/customersRepo.ts"
+      ],
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api"
+    },
+    {
+      "order": 6,
+      "action": "Update src/compliance/amlReport.ts: datetime('now', '-24 hours') → NOW() - INTERVAL '24 hours'. Update ? → $1. OBTAIN SIGN-OFF from Carol Durand / compliance team (COMP-7) before merge.",
+      "rationale": "Regulatory query — semantically equivalent change must be verified by compliance. Wrong interval expression silently returns incorrect AML data.",
+      "targetFiles": [
+        "src/compliance/amlReport.ts"
+      ],
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api"
+    },
+    {
+      "order": 7,
+      "action": "Update tests/transferService.test.ts and tests/routes.test.ts fakeQuery mocks: replace SQLite syntax pattern matching (strftime, INSERT OR REPLACE, datetime) with PostgreSQL equivalents ($1 params, NOW(), DATE(), ON CONFLICT).",
+      "rationale": "fakeQuery mocks currently match SQLite SQL patterns. After migration they must match PostgreSQL SQL patterns to exercise the same code paths.",
+      "targetFiles": [
+        "tests/transferService.test.ts",
+        "tests/routes.test.ts"
+      ],
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api"
+    },
+    {
+      "order": 8,
+      "action": "Run full test suite (node node_modules/vitest/vitest.mjs run). All 22 existing tests must pass. Install @vitest/coverage-v8 and measure coverage on the 4 changed files.",
+      "rationale": "Validates no regression in business logic. Coverage baseline should be established before production deploy.",
+      "targetFiles": [],
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api"
+    }
+  ]
+}

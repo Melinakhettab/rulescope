@@ -20,9 +20,13 @@ Expected open questions: raise the fraud threshold for Premium? Calendar day or 
 - api: src/retention/policy.ts keeps transactions 10 years — CONTRADICTION → ask Legal (anonymize instead of delete?)
 
 ## T3 — SQLite → PostgreSQL
-- api/src/db/: 3 files with "INSERT OR REPLACE", "datetime('now')", "AUTOINCREMENT" — CHANGE
-- api/src/compliance/amlReport.ts uses strftime — CHANGE (hidden)
+- api/src/db/db.ts — driver setup (better-sqlite3) — CHANGE
+- api/src/db/transfersRepo.ts — datetime('now') and strftime(...) — CHANGE
+- api/src/db/customersRepo.ts — INSERT OR REPLACE — CHANGE
+- api/src/compliance/amlReport.ts — datetime('now', '-24 hours') — CHANGE (hidden, regulatory: needs compliance sign-off)
+- "AUTOINCREMENT" only appears in a comment — no SQL to migrate (correctly not flagged)
 - mobile: NOT AFFECTED (no direct database access)
 
 ## T4 — Transfer button color
-- No business rule affected. Only a UI file in the mobile app.
+- No business rule affected; all API files NOT AFFECTED.
+- The analyzed repositories contain no UI styling code: the correct answer is to say so and ask which repository holds the button component (no invented file).

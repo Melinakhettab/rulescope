@@ -1,0 +1,180 @@
+{
+  "$schema": "https://rulescope/impact-report/v1",
+  "ticketId": "UI-77",
+  "title": "Change the Transfer button color to blue (#1E40AF)",
+  "createdAt": "2026-09-26T16:20:00.000Z",
+  "requestSummary": "Change the color of the 'Transfer' button in the mobile app to blue (#1E40AF). The button color is NOT defined in either provided repository. Both novabank-api and novabank-mobile contain only business logic and API client code — no UI framework, no component files, no stylesheet, and no color/style constants. The actual button component lives in a native mobile UI layer outside the provided repositories.",
+  "openQuestions": [
+    "Which repository/package contains the actual Transfer button UI component? (React Native, Flutter, Kotlin, Swift, or web?)",
+    "Is there a shared design-token or theme file that defines button colors centrally? If so, changing the token may propagate to all buttons — verify scope with Design.",
+    "Is #1E40AF accessible (WCAG AA contrast ratio) against the button label color and background?",
+    "Are there multiple 'Transfer' buttons (home screen, confirmation screen, etc.) or only one?",
+    "Does the color change need to apply in dark mode as well?"
+  ],
+  "entryPoints": [
+    {
+      "id": "entry_point:transfer-screen",
+      "kind": "entry_point",
+      "label": "TransferScreen (novabank-mobile)",
+      "description": "The closest file to the Transfer UI: exports TransferScreenState and submitTransfer(). Contains the screen's business logic but no style or color definitions.",
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-mobile",
+      "evidence": [
+        {
+          "file": "src/screens/TransferScreen.ts",
+          "line": 10,
+          "snippet": "export async function submitTransfer(payload: TransferPayload): Promise<TransferScreenState>",
+          "tool": "git_grep"
+        }
+      ]
+    }
+  ],
+  "repoPaths": [
+    "C:/Users/khett/rulescope/demo-workspace/novabank-mobile",
+    "C:/Users/khett/rulescope/demo-workspace/novabank-api"
+  ],
+  "filesToChange": {
+    "C:/Users/khett/rulescope/demo-workspace/novabank-mobile": [],
+    "C:/Users/khett/rulescope/demo-workspace/novabank-api": []
+  },
+  "filesToCheck": {
+    "C:/Users/khett/rulescope/demo-workspace/novabank-mobile": [
+      "src/screens/TransferScreen.ts"
+    ],
+    "C:/Users/khett/rulescope/demo-workspace/novabank-api": []
+  },
+  "filesNotAffected": {
+    "C:/Users/khett/rulescope/demo-workspace/novabank-mobile": [
+      "src/services/api.ts",
+      "src/transfers/validateTransfer.ts",
+      "src/analytics/events.ts",
+      "src/config.ts",
+      "tests/TransferScreen.test.ts",
+      "tests/api.test.ts",
+      "tests/analytics.test.ts"
+    ],
+    "C:/Users/khett/rulescope/demo-workspace/novabank-api": [
+      "src/api/routes.ts",
+      "src/transfers/transferService.ts",
+      "src/transfers/limits.ts",
+      "src/db/transfersRepo.ts",
+      "src/db/accountsRepo.ts",
+      "src/db/db.ts",
+      "src/logging/logger.ts",
+      "src/fraud/rules.ts",
+      "src/compliance/amlReport.ts",
+      "src/notifications/templates.ts",
+      "src/retention/policy.ts",
+      "src/customers/index.ts",
+      "src/cards/cardLimits.ts"
+    ]
+  },
+  "items": [
+    {
+      "id": "entry_point:transfer-screen",
+      "kind": "entry_point",
+      "label": "TransferScreen — Transfer UI entry point",
+      "description": "The TransferScreen module exports TransferScreenState and submitTransfer(). It contains no color, style, or theme definitions. Created by Elena Rossi on 2023-08-14 in commit 15d33a71.",
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-mobile",
+      "evidence": [
+        {
+          "file": "src/screens/TransferScreen.ts",
+          "line": 1,
+          "snippet": "feat: TransferScreen with limit label and client-side validation — Elena Rossi, 2023-08-14",
+          "tool": "git_blame"
+        }
+      ],
+      "issues": [
+        {
+          "kind": "contradiction",
+          "description": "Ticket UI-77 requests a Transfer button color change, but the file that owns the Transfer screen (TransferScreen.ts) contains no button component, style attribute, or hex color. The UI rendering layer is absent from the analyzed repositories.",
+          "evidence": [
+            {
+              "file": "src/screens/TransferScreen.ts",
+              "line": 1,
+              "snippet": "import { validateTransfer } from \"../transfers/validateTransfer.js\"; — no style imports",
+              "tool": "git_grep"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "simulations": [
+    {
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-mobile",
+      "edits": [],
+      "testCode": "import { describe, it, expect } from 'vitest';\ndescribe('T4 baseline', () => {\n  it('TransferScreen exports no color-related properties', async () => {\n    const mod = await import('./src/screens/TransferScreen.js');\n    const colorKeys = Object.keys(mod).filter(k => /color|style|theme|button/i.test(k));\n    expect(colorKeys).toEqual([]);\n  });\n  it('config.ts exports no color or style', async () => {\n    const mod = await import('./src/config.js');\n    const colorKeys = Object.keys(mod).filter(k => /color|style|theme/i.test(k));\n    expect(colorKeys).toEqual([]);\n  });\n});",
+      "rows": [
+        {
+          "input": "TransferScreen exports no color-related properties",
+          "before": "passed",
+          "after": "passed",
+          "passed": true
+        },
+        {
+          "input": "config.ts exports no color or style",
+          "before": "passed",
+          "after": "passed",
+          "passed": true
+        }
+      ],
+      "rawOutput": "Proof-only run (empty edits). All existing tests pass unchanged.",
+      "worktreePath": "C:/Users/khett/AppData/Local/Temp/rulescope-sim-4fabb696"
+    }
+  ],
+  "coverage": [
+    {
+      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-mobile",
+      "fileCoverage": {},
+      "functionCoverage": {},
+      "uncoveredFiles": []
+    }
+  ],
+  "riskLevel": "low",
+  "effortEstimate": "1 file, 1 line — once the correct UI repository is identified",
+  "riskRationale": "Pure cosmetic change (button color). No business logic, API contract, database, or test changes required. Risk is 'low' after the correct repository is found. Main risk is that a shared theme token could affect other buttons.",
+  "changePlan": [
+    {
+      "order": 1,
+      "action": "Identify the missing UI repository that contains the Transfer button component.",
+      "rationale": "Neither novabank-api nor novabank-mobile contains any button component, stylesheet, or color constant. The real change target is a third repository.",
+      "targetFiles": [],
+      "repoPath": ""
+    },
+    {
+      "order": 2,
+      "action": "Search the UI repo for the Transfer button color declaration (hex code, style constant, or design token).",
+      "rationale": "Confirms the exact file and line to edit, and whether a theme system exists.",
+      "targetFiles": [],
+      "repoPath": ""
+    },
+    {
+      "order": 3,
+      "action": "If a design-token system exists, update the token value for the Transfer button (or primary-action token) to #1E40AF. Otherwise, update the inline style in the button component.",
+      "rationale": "Token approach propagates consistently; inline edit is scoped to one button.",
+      "targetFiles": [],
+      "repoPath": ""
+    },
+    {
+      "order": 4,
+      "action": "Verify WCAG AA contrast ratio for #1E40AF against the button label color.",
+      "rationale": "Accessibility requirement. Blue #1E40AF (dark navy) should pass against white label text, but must be confirmed.",
+      "targetFiles": [],
+      "repoPath": ""
+    },
+    {
+      "order": 5,
+      "action": "Check and update the dark-mode variant of the button color if applicable.",
+      "rationale": "Many mobile apps maintain separate light/dark palettes.",
+      "targetFiles": [],
+      "repoPath": ""
+    },
+    {
+      "order": 6,
+      "action": "No changes required in novabank-api or novabank-mobile.",
+      "rationale": "Both repositories contain only backend and API-client logic. Confirmed by exhaustive grep: zero color/style/theme/button declarations in all source files.",
+      "targetFiles": [],
+      "repoPath": ""
+    }
+  ]
+}

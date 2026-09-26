@@ -37,6 +37,7 @@ Each subagent:
 
 ## Step 6 — Save and present
 - Assess risk level and effort, and write a step-by-step safe change plan.
+- Set createdAt to the real current date and time: run the command `Get-Date -Format o` and use its output. Never invent a date.
 - Call save_impact_report with the full ImpactReport (ticketId = the ticket ID, e.g. PROD-482).
 - Present the brief in chat: request + open questions, entry points, files to CHANGE / CHECK / NOT AFFECTED, contradictions, simulation table, git history, coverage gaps, risk & effort, plan.
 - End by offering to apply the plan in Agent mode.
