@@ -115,7 +115,7 @@ Implement the tool that connects provider/consumer pairs across repositories: HT
 
 ## Sub-Task 4 — Simulation Engine (`simulate_change`)
 
-**Status**: [ ] pending
+**Status**: [x] done
 
 **Intent**
 Implement the tool that runs vitest in a temporary git worktree before and after applying a patch, producing a `SimulationResult` with a before/after row table. The real repository is never touched.
@@ -131,14 +131,14 @@ Implement the tool that runs vitest in a temporary git worktree before and after
 - At least one **real integration test** using a small fixture repository committed under `rulescope-mcp/fixtures/sim-fixture/` (a minimal git repo with a vitest test and a simple function), proving that the before/after table is correct on a real patch.
 
 **Todo List**
-- [ ] Create `rulescope-mcp/fixtures/sim-fixture/` — minimal git repo (init, one `.ts` file, one vitest test, `package.json`, vitest config)
-- [ ] Implement `worktree.ts` — create at `os.tmpdir()`, symlink `node_modules` (junction), apply patch, remove
-- [ ] Implement `runVitest.ts` — run, parse JSON, return rows
-- [ ] Implement `simulateChange.ts` — full flow with try/finally cleanup
-- [ ] Wire `simulate_change` tool in `index.ts`
-- [ ] Write unit tests (mock subprocess) — happy path, patch failure, cleanup guarantee
-- [ ] Write integration test using `fixtures/sim-fixture/` — real git worktree, real vitest run, assert before/after rows
-- [ ] `tsc --noEmit` and all vitest tests (unit + integration) pass
+- [x] Create `test/fixtures/sim-fixture/` — plain template files (no `.git`): `package.json`, `vitest.config.ts`, `src/pricing.ts`, `pricing.test.ts`
+- [x] Implement `worktree.ts` — create at `os.tmpdir()`, junction `node_modules`, `unlinkSync` junction before removal, `git worktree remove --force` + `git worktree prune`
+- [x] Implement `runVitest.ts` — `node <node_modules>/vitest/vitest.mjs run --reporter=json --outputFile=<tmp>`, parse rows
+- [x] Implement `simulateChange.ts` — `edits[]` search-replace (exactly-once guard), `try/finally` cleanup
+- [x] Wire `simulate_change` tool in `index.ts` (edits schema)
+- [x] Write unit tests (mock subprocess) — happy path, proof-only, edits applied, search-not-found, ambiguous-search, merge rows, cleanup guarantee ×2
+- [x] Write integration test — real worktree + vitest, before passes/after fails, proof-only, bad-edit cleanup, `node_modules/.bin` survival ×2
+- [x] `tsc --noEmit` and all vitest tests pass (38 passed, 1 pre-existing skip)
 
 **Relevant Context**
 - `docs/DESIGN.md §5.3` — `simulate_change` spec

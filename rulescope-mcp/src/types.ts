@@ -48,15 +48,25 @@ export interface ImpactItem {
 
 export interface SimulationRow {
   input: string;    // Human-readable description of the test input
-  before: string;   // Output / assertion result before the patch
-  after: string;    // Output / assertion result after the patch
-  passed: boolean;  // Whether the test passed after the patch
+  before: string;   // Output / assertion result before the edit
+  after: string;    // Output / assertion result after the edit
+  passed: boolean;  // Whether the test passed after the edit
+}
+
+/** A single search-and-replace edit to apply inside the worktree. */
+export interface SimulationEdit {
+  /** Relative path to the file inside the repository */
+  file: string;
+  /** Exact string to find (must appear exactly once in the file) */
+  search: string;
+  /** String to replace the single occurrence with */
+  replace: string;
 }
 
 export interface SimulationResult {
   repoPath: string;
-  /** The patch that was applied (unified diff), or empty string for a proof-only run */
-  patch: string;
+  /** The edits that were applied, or empty array for a proof-only run */
+  edits: SimulationEdit[];
   /** The test code that was executed (vitest) */
   testCode: string;
   rows: SimulationRow[];

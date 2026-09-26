@@ -69,25 +69,29 @@ server.registerTool(
   "simulate_change",
   {
     description:
-      "Runs vitest in a temporary git worktree before and after applying a patch. " +
+      "Runs vitest in a temporary git worktree before and after applying search-replace edits. " +
       "The real repository is never modified. The worktree is always cleaned up.",
     inputSchema: z.object({
       repoPath: z
         .string()
         .describe("Absolute path to the git repository root"),
-      patch: z
-        .string()
-        .describe(
-          "Unified diff to apply. Pass an empty string for a proof-only run.",
-        ),
+      edits: z
+        .array(
+          z.object({
+            file: z.string().describe("Relative file path inside the repository"),
+            search: z.string().describe("Exact string to find (must appear exactly once)"),
+            replace: z.string().describe("String to replace the single occurrence with"),
+          }),
+        )
+        .describe("Edits to apply. Pass an empty array for a proof-only run."),
       testCode: z
         .string()
         .describe("Vitest test file content to execute in the worktree"),
     }),
   },
-  async ({ repoPath, patch, testCode }) => {
+  async ({ repoPath, edits, testCode }) => {
     try {
-      const result = await simulateChange({ repoPath, patch, testCode });
+      const result = await simulateChange({ repoPath, edits, testCode });
       return { content: [{ type: "text", text: JSON.stringify(result) }] };
     } catch (err) {
       return {

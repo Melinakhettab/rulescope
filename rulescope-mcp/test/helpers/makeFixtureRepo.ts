@@ -62,6 +62,7 @@ export async function makeFixtureRepo(fixtureName: string): Promise<string> {
   git(["init", "-b", "main"], repoPath);
   git(["config", "user.name", "Test User"], repoPath);
   git(["config", "user.email", "test@example.com"], repoPath);
+  git(["config", "core.autocrlf", "false"], repoPath);
   git(["add", "."], repoPath);
   git(["commit", "-m", "initial commit"], repoPath);
 
