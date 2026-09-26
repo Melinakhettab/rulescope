@@ -43,7 +43,7 @@ function makeValidReport(overrides: Partial<ImpactReport> = {}): ImpactReport {
     openQuestions: [],
     entryPoints: [],
     repoPaths: ["/fake/repo"],
-    filesToChange: {},
+    filesToChange: { "/fake/repo": ["src/foo.ts"] },
     filesToCheck: {},
     filesNotAffected: {},
     items: [
@@ -53,6 +53,7 @@ function makeValidReport(overrides: Partial<ImpactReport> = {}): ImpactReport {
         label: "Test rule",
         description: "A rule",
         repoPath: "/fake/repo",
+        severity: "low",
         evidence: [
           { file: "src/foo.ts", line: 1, snippet: "const x = 1;", tool: "git_grep" },
         ],
@@ -61,7 +62,7 @@ function makeValidReport(overrides: Partial<ImpactReport> = {}): ImpactReport {
     simulations: [],
     coverage: [],
     riskLevel: "low",
-    effortEstimate: "1 file",
+    effortEstimate: "~1 h, 1 line",
     riskRationale: "Minimal",
     changePlan: [
       {
@@ -172,6 +173,7 @@ describe("saveImpactReport", () => {
           label: "A test",
           description: "desc",
           repoPath: "/fake/repo",
+          severity: "low",
           evidence: [],
         },
       ],
@@ -212,6 +214,37 @@ describe("saveImpactReport", () => {
     expect("path" in result).toBe(true);
     if (!("path" in result)) return;
     expect(result.path).toBe("report/data/___.json");
+  });
+
+  it("returns error when an item has no severity", async () => {
+    const report = makeValidReport();
+    // @ts-expect-error intentional missing field
+    delete report.items[0].severity;
+    const result = await saveImpactReport({ reportJson: report });
+
+    expect("error" in result).toBe(true);
+    if (!("error" in result)) return;
+    expect(result.error).toMatch(/severity/);
+  });
+
+  it("returns error when a file is both to change and to check", async () => {
+    const report = makeValidReport({
+      filesToCheck: { "/fake/repo": ["src/foo.ts"] },
+    });
+    const result = await saveImpactReport({ reportJson: report });
+
+    expect("error" in result).toBe(true);
+    if (!("error" in result)) return;
+    expect(result.error).toMatch(/both in filesToChange and filesToCheck/);
+  });
+
+  it("returns error when a changePlan target file is not classified", async () => {
+    const report = makeValidReport({ filesToChange: { "/fake/repo": [] } });
+    const result = await saveImpactReport({ reportJson: report });
+
+    expect("error" in result).toBe(true);
+    if (!("error" in result)) return;
+    expect(result.error).toMatch(/neither filesToChange nor filesToCheck/);
   });
 });
 

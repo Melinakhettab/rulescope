@@ -1,7 +1,7 @@
 # RuleScope — Design Document
 
 > IBM Bob 2.0 Hackathon · TypeScript/JavaScript prototype  
-> Status: **Design** (not yet implemented)
+> Status: **Implemented** (prototype). This document is the original design; the source of truth for the schema is `rulescope-mcp/src/types.ts`.
 
 ---
 
@@ -101,7 +101,7 @@ export interface ImpactItem {
   kind: ImpactItemKind;
   label: string;          // Human-readable title
   description: string;    // What it does and how it relates to the change request
-  repoPath: string;       // Absolute path to the repository root
+  repoPath: string;       // Repository root; saved relative to the RuleScope root when inside it (e.g. "demo-workspace/novabank-api")
   evidence: Evidence[];   // One or more tool-proven references — never empty
 
   /** For business_rule: evaluation order relative to sibling rules (1-based, null if unknown) */
@@ -188,7 +188,7 @@ export interface ImpactReport {
   // Sections 3 + 4 — File triage and impacted items
   repoPaths: string[];
   filesToChange: Record<string, string[]>;   // repoPath → file list
-  filesToCheck: Record<string, string[]>;    // repoPath → file list
+  filesToCheck: Record<string, string[]>;    // repoPath → file list (reviewed, NOT edited; edited tests go in filesToChange)
   filesNotAffected: Record<string, string[]>;// repoPath → file list (sampled)
   items: ImpactItem[];                       // All impacted items (all kinds)
 
@@ -203,7 +203,7 @@ export interface ImpactReport {
 
   // Section 8 — Risk and effort
   riskLevel: RiskLevel;
-  effortEstimate: string;       // Free text, e.g. "2–3 files, ~50 lines changed"
+  effortEstimate: string;       // Time and size only, e.g. "4–6 h, ~50 lines" — never file counts (the page computes them)
   riskRationale: string;
 
   // Section 9 — Change plan

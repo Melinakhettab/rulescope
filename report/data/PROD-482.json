@@ -79,42 +79,47 @@
       "src/transfers/limits.ts",
       "src/transfers/transferService.ts",
       "src/api/routes.ts",
-      "src/notifications/templates.ts"
-    ],
-    "demo-workspace/novabank-mobile": [
-      "src/transfers/validateTransfer.ts",
-      "src/screens/TransferScreen.ts"
-    ]
-  },
-  "filesToCheck": {
-    "demo-workspace/novabank-api": [
+      "src/notifications/templates.ts",
       "tests/limits.test.ts",
       "tests/transferService.test.ts",
       "tests/routes.test.ts"
     ],
     "demo-workspace/novabank-mobile": [
+      "src/transfers/validateTransfer.ts",
+      "src/screens/TransferScreen.ts",
       "tests/TransferScreen.test.ts",
       "tests/api.test.ts"
     ]
   },
-  "filesNotAffected": {
+  "filesToCheck": {
     "demo-workspace/novabank-api": [
       "src/fraud/rules.ts",
+      "src/compliance/amlReport.ts"
+    ],
+    "demo-workspace/novabank-mobile": [
+      "src/services/api.ts"
+    ]
+  },
+  "filesNotAffected": {
+    "demo-workspace/novabank-api": [
       "src/cards/cardLimits.ts",
-      "src/compliance/amlReport.ts",
       "src/db/customersRepo.ts",
       "src/db/transfersRepo.ts",
       "src/logging/logger.ts"
     ],
     "demo-workspace/novabank-mobile": [
-      "src/services/api.ts",
       "src/analytics/events.ts"
     ]
+  },
+  "repoFileCounts": {
+    "demo-workspace/novabank-api": 24,
+    "demo-workspace/novabank-mobile": 12
   },
   "items": [
     {
       "id": "business_rule:daily-limit-constant",
       "kind": "business_rule",
+      "severity": "high",
       "label": "DAILY_LIMIT = 1000 — flat constant, tier-blind",
       "description": "Single source of truth for the daily transfer cap. Currently a module-level constant; must become a tier-aware function getDailyLimit(tier). Author: Alice Martin (2023-04-20). Comment on line 1 explicitly says 'applies to all customers regardless of tier' — contradicts the new requirement.",
       "repoPath": "demo-workspace/novabank-api",
@@ -151,6 +156,7 @@
     {
       "id": "business_rule:transfer-service-limit-check",
       "kind": "business_rule",
+      "severity": "high",
       "label": "Daily limit enforcement in executeTransfer()",
       "description": "Line 36: if (dailyTotal + amount > DAILY_LIMIT). The customer.tier is available (loaded at line 42 for logging) but NOT used for limit lookup. Must be refactored to load customer before the check and pass tier to getDailyLimit(). Author: Bob Chen (2024-04-02).",
       "repoPath": "demo-workspace/novabank-api",
@@ -173,6 +179,7 @@
     {
       "id": "business_rule:fraud-threshold",
       "kind": "business_rule",
+      "severity": "critical",
       "label": "Fraud threshold €2,000 — blocks Premium transfers 2001–5000",
       "description": "checkFraud() runs BEFORE the daily limit check (evaluation order 1). Any transfer above €2,000 goes to PENDING_REVIEW regardless of tier. The new Premium limit (€5,000) means every Premium transfer in the €2,001–€5,000 range will be held for manual review. This is almost certainly unintentional. Introduced by Carol Durand (2024-03-11) in response to fraud incident FR-2024-17.",
       "repoPath": "demo-workspace/novabank-api",
@@ -209,6 +216,7 @@
     {
       "id": "business_rule:client-side-limit",
       "kind": "business_rule",
+      "severity": "high",
       "label": "CLIENT_DAILY_LIMIT = 1000 — mobile client-side guard",
       "description": "Introduced by David Kim (2023-06-05) as an optimisation to avoid unnecessary API calls. Hardcoded to 1000. Will silently block Premium customers from transferring more than €1,000 even after the server-side fix.",
       "repoPath": "demo-workspace/novabank-mobile",
@@ -237,6 +245,7 @@
     {
       "id": "config:hardcoded-ui-label",
       "kind": "config",
+      "severity": "low",
       "label": "Hardcoded UI label 'Daily limit: €1,000' in TransferScreen",
       "description": "Displayed to all customers regardless of tier. Authored by Elena Rossi (2023-08-14). Must be replaced with a dynamic value derived from the API response or customer tier.",
       "repoPath": "demo-workspace/novabank-mobile",
@@ -252,6 +261,7 @@
     {
       "id": "config:hardcoded-notification-template",
       "kind": "config",
+      "severity": "medium",
       "label": "Hardcoded notification template 'Your daily transfer limit is €1,000'",
       "description": "limitInfo() in templates.ts returns a hardcoded string. Currently 0% test coverage. Must accept a tier parameter.",
       "repoPath": "demo-workspace/novabank-api",
@@ -267,6 +277,7 @@
     {
       "id": "cross_repo_link:api-limits-endpoint",
       "kind": "cross_repo_link",
+      "severity": "high",
       "label": "GET /api/limits ↔ getLimits() in mobile",
       "description": "API provides the limit value; mobile consumes it to display the UI label and (indirectly) inform the client-side guard. Both must be updated together in a coordinated deploy.",
       "repoPath": "demo-workspace/novabank-api",
@@ -289,6 +300,7 @@
     {
       "id": "test:limits-test",
       "kind": "test",
+      "severity": "medium",
       "label": "tests/limits.test.ts — asserts DAILY_LIMIT === 1000",
       "description": "Will break when DAILY_LIMIT constant is replaced by a function. Must be rewritten for getDailyLimit('STANDARD') and getDailyLimit('PREMIUM').",
       "repoPath": "demo-workspace/novabank-api",
@@ -304,6 +316,7 @@
     {
       "id": "test:routes-test",
       "kind": "test",
+      "severity": "medium",
       "label": "tests/routes.test.ts — asserts dailyLimit === 1000 from GET /api/limits",
       "description": "Hard-wired assertion. When the endpoint becomes tier-aware, this test must cover both Standard (1000) and Premium (5000) responses.",
       "repoPath": "demo-workspace/novabank-api",
@@ -319,6 +332,7 @@
     {
       "id": "test:transfer-service-test",
       "kind": "test",
+      "severity": "medium",
       "label": "tests/transferService.test.ts — no PREMIUM test case",
       "description": "Test data includes tier: STANDARD but no Premium scenario. The rejection test (800+300 > 1000) will need updating. A new Premium test case must be added.",
       "repoPath": "demo-workspace/novabank-api",
@@ -426,7 +440,7 @@
           "passed": false
         }
       ],
-      "rawOutput": "Naive fix run: 5 existing tests broken; Standard customer regression confirmed",
+      "rawOutput": "Naive fix run: 3 existing tests broken (limits, routes, transferService); Standard customer regression confirmed",
       "worktreePath": "C:/Users/lisak/AppData/Local/Temp/rulescope-sim-naive"
     }
   ],
@@ -470,7 +484,7 @@
     }
   ],
   "riskLevel": "high",
-  "effortEstimate": "4–6 h backend (4 source files + 3 test files) + 2–3 h mobile (2 source files + 2 test files)",
+  "effortEstimate": "4–6 h backend + 2–3 h mobile",
   "riskRationale": "A naive one-line bump to DAILY_LIMIT silently raises the Standard customer limit too (simulation-proven). The fraud threshold (€2,000) is LOWER than the new Premium limit (€5,000), meaning all Premium transfers above €2,000 will be PENDING_REVIEW — almost certainly unintended. The change spans two repositories with a synchronous API contract. notifications/templates.ts has 0% test coverage. No PREMIUM tier test cases exist anywhere.",
   "changePlan": [
     {
@@ -519,7 +533,7 @@
     {
       "order": 6,
       "action": "Update tests/limits.test.ts, tests/transferService.test.ts, and tests/routes.test.ts: replace DAILY_LIMIT assertions with getDailyLimit() calls, add PREMIUM tier scenarios, and fix the rejection test that assumes 800+300 exceeds the limit.",
-      "rationale": "5 existing tests break after the naive fix (simulation-proven). New PREMIUM coverage is required.",
+      "rationale": "3 existing tests break after the naive fix (simulation-proven). New PREMIUM coverage is required.",
       "targetFiles": [
         "tests/limits.test.ts",
         "tests/transferService.test.ts",
@@ -562,5 +576,9 @@
       "targetFiles": [],
       "repoPath": "deployment"
     }
-  ]
+  ],
+  "blockedBy": {
+    "owner": "Risk/Fraud team",
+    "reason": "Does the fraud threshold (€2,000, incident FR-2024-17) apply to Premium customers? Transfers €2,001–€5,000 will be routed to PENDING_REVIEW without a change to fraud/rules.ts. Needs sign-off from Risk/Fraud team before release."
+  }
 }

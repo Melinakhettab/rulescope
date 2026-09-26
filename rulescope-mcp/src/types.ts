@@ -22,12 +22,22 @@ export type ImpactItemKind =
   | "cross_repo_link"      // Provider/consumer pair spanning repositories
   | "test";                // A test that exercises an affected item
 
+export type Severity = "critical" | "high" | "medium" | "low";
+
 export interface ImpactItem {
   id: string;             // Stable slug, e.g. "business_rule:free-shipping-threshold"
   kind: ImpactItemKind;
+  /**
+   * critical = regulatory, legal, security or money-loss impact
+   * high     = a core user flow breaks
+   * medium   = a secondary flow breaks
+   * low      = cosmetic or no functional impact
+   * Required: the report page never guesses it.
+   */
+  severity: Severity;
   label: string;          // Human-readable title
   description: string;    // What it does and how it relates to the change request
-  repoPath: string;       // Absolute path to the repository root
+  repoPath: string;       // Repository root; saved relative to the RuleScope root when inside it (e.g. "demo-workspace/novabank-api")
   evidence: Evidence[];   // One or more tool-proven references — never empty
 
   /** For business_rule: evaluation order relative to sibling rules (1-based, null if unknown) */
@@ -116,9 +126,21 @@ export interface ImpactReport {
 
   // Sections 3 + 4 — File triage and impacted items
   repoPaths: string[];
+  /**
+   * filesToChange: every file that will be edited OR created, test files included.
+   * filesToCheck:  files that are NOT edited but must be reviewed (callers, blockers, related rules).
+   * filesNotAffected: files looked at and ruled out (may be a sample).
+   * The three lists must not overlap, and every file in changePlan[].targetFiles
+   * must appear in filesToChange or filesToCheck.
+   */
   filesToChange: Record<string, string[]>;    // repoPath → file list
   filesToCheck: Record<string, string[]>;     // repoPath → file list
   filesNotAffected: Record<string, string[]>; // repoPath → file list (sampled)
+  /**
+   * repoPath → total number of tracked files in that repository.
+   * Filled automatically by save_impact_report (git ls-files); used for the "Scanned" line.
+   */
+  repoFileCounts?: Record<string, number>;
   items: ImpactItem[];                        // All impacted items (all kinds)
 
   // Section 5 — Simulation
@@ -132,11 +154,18 @@ export interface ImpactReport {
 
   // Section 8 — Risk and effort
   riskLevel: RiskLevel;
-  effortEstimate: string;       // Free text, e.g. "2–3 files, ~50 lines changed"
+  /**
+   * Time and size only, e.g. "4–6 h backend + 2–3 h mobile, ~50 lines".
+   * Never repeat file counts here: the page computes them from filesToChange / filesToCheck.
+   */
+  effortEstimate: string;
   riskRationale: string;
 
   // Section 9 — Change plan
   changePlan: ChangePlanStep[];
+
+  /** The sign-off that blocks the work, if any. `owner` is who must sign off (e.g. "Risk/Fraud team"). */
+  blockedBy?: { owner: string; reason: string } | null;
 }
 
 // ─── Tool result types ───────────────────────────────────────────────────────

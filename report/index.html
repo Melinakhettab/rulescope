@@ -446,7 +446,7 @@ body {
 }
 .proof-grid {
   display: grid;
-  grid-template-columns: 380px 1fr;
+  grid-template-columns: 320px 1fr;
   gap: 48px;
 }
 .diff-block {
@@ -480,16 +480,17 @@ body {
 }
 .pt-header {
   display: grid;
-  grid-template-columns: 6px 180px 76px 76px 1fr;
+  grid-template-columns: 6px minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1.3fr);
   gap: 18px;
   padding: 0 0 10px;
   border-bottom: 2px solid var(--ink);
   font-size: 12.5px;
   color: var(--muted);
 }
+.pt-row > span { min-width: 0; overflow-wrap: break-word; }
 .pt-row {
   display: grid;
-  grid-template-columns: 6px 180px 76px 76px 1fr;
+  grid-template-columns: 6px minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1.3fr);
   gap: 18px;
   padding: 15px 0;
   border-bottom: 1px solid var(--line);
@@ -613,7 +614,6 @@ body {
 
 /* ── OVERFLOW GUARDS (global) ────────────────────────────── */
 .fl-path, .fl-desc, .fl-lines,
-.pt-fn,
 .diff-file, .diff-del, .diff-add,
 .entry-route, .entry-sub {
   overflow-wrap: anywhere;
@@ -818,23 +818,43 @@ function riskColor(level) {
 }
 
 /* ── severity derivation ─────────────────────────────────── */
+const SEVERITY_RANK = { critical: 4, high: 3, medium: 2, low: 1 };
+
+// Reports saved since schema v1.1 carry an explicit item.severity (required by
+// save_impact_report). The fallback below only exists for older reports.
 function deriveItemSeverity(item, data) {
-  if (item.severity) return item.severity;
-  // contradiction on regulatory/compliance → critical
+  if (SEVERITY_RANK[item.severity]) return item.severity;
+  // Legacy guess: contradiction on regulatory/compliance → critical
   if (item.issues && item.issues.some(i =>
     i.kind === 'contradiction' &&
-    /compliance|regulatory|aml|legal/i.test(i.description || '')
+    /compliance|regulatory|aml|legal|gdpr|fraud/i.test(i.description || '')
   )) return 'critical';
-  const file = (item.evidence || []).map(e => e.file)[0] || '';
-  // in filesToChange across any repo → high
-  for (const repo of Object.values(data.filesToChange || {})) {
-    if (repo.includes(file)) return 'high';
+  // Look at every evidence file, in the item's own repository only
+  const files = (item.evidence || []).map(e => e.file);
+  const change = (data.filesToChange || {})[item.repoPath] || [];
+  const check  = (data.filesToCheck  || {})[item.repoPath] || [];
+  if (files.some(f => change.includes(f))) return 'high';
+  if (files.some(f => check.includes(f)))  return 'medium';
+  return 'low';
+}
+
+// Items whose evidence points at file f in repository repo
+// (cross-repo links carry evidence from both sides, so they match either repo).
+function itemsForFile(data, repo, f) {
+  return [...(data.items || []), ...(data.entryPoints || [])].filter(item =>
+    (item.repoPath === repo || item.kind === 'cross_repo_link') &&
+    (item.evidence || []).some(e => e.file === f)
+  );
+}
+
+// Highest severity among the items touching a file, or null when no item mentions it.
+function fileSeverity(data, repo, f) {
+  let best = null;
+  for (const item of itemsForFile(data, repo, f)) {
+    const sev = deriveItemSeverity(item, data);
+    if (!best || SEVERITY_RANK[sev] > SEVERITY_RANK[best]) best = sev;
   }
-  // in filesToCheck → to-check
-  for (const repo of Object.values(data.filesToCheck || {})) {
-    if (repo.includes(file)) return 'to-check';
-  }
-  return 'unaffected';
+  return best;
 }
 
 /* ── build the SVG repo map ──────────────────────────────── */
@@ -894,16 +914,8 @@ function buildRepoMap(data) {
         // Severity per file
         let sev = cls;
         if (cls === 'change') {
-          // derive severity from items
-          let found = 'high';
-          for (const item of (data.items || [])) {
-            const itemFiles = (item.evidence || []).map(e => e.file);
-            if (itemFiles.includes(f)) {
-              found = deriveItemSeverity(item, data);
-              break;
-            }
-          }
-          sev = found;
+          // highest severity among the items of this repo that touch the file
+          sev = fileSeverity(data, repo, f) || 'unaffected';
         }
 
         const fillColor = {
@@ -982,29 +994,24 @@ function buildFileList(data) {
       }
       change.forEach(f => {
         // find item for this file
-        let sev = 'high';
+        let sev = fileSeverity(data, repo, f) || 'unaffected';
         let desc = '';
         let lines = '';
-        for (const item of (data.items || [])) {
-          const evFiles = (item.evidence || []).map(e => e.file);
-          if (evFiles.includes(f)) {
-            sev = deriveItemSeverity(item, data);
-            desc = item.description || item.label || '';
-            // find line range
-            const evLines = (item.evidence || []).map(e => e.line).filter(Boolean);
-            if (evLines.length >= 2) {
-              lines = `${Math.min(...evLines)}–${Math.max(...evLines)}`;
-            } else if (evLines.length === 1) {
-              lines = `${evLines[0]}`;
-            }
-            break;
+        const item = itemsForFile(data, repo, f)[0];
+        if (item) {
+          desc = item.description || item.label || '';
+          // find line range (only lines from this file)
+          const evLines = (item.evidence || []).filter(e => e.file === f).map(e => e.line).filter(Boolean);
+          if (evLines.length >= 2) {
+            lines = `${Math.min(...evLines)}–${Math.max(...evLines)}`;
+          } else if (evLines.length === 1) {
+            lines = `${evLines[0]}`;
           }
         }
         if (!desc) {
           // derive from label
-          for (const item of (data.items || [])) {
+          for (const item of (data.items || []).filter(it => it.repoPath === repo)) {
             if ((item.label||'').toLowerCase().includes(shortFile(f).replace('.ts','').toLowerCase())) {
-              sev = deriveItemSeverity(item, data);
               desc = item.description || item.label || '';
               const evLines = (item.evidence||[]).map(e=>e.line).filter(Boolean);
               if (evLines.length >= 2) lines = `${Math.min(...evLines)}–${Math.max(...evLines)}`;
@@ -1043,51 +1050,54 @@ function buildFileList(data) {
 
 /* ── build verdict ───────────────────────────────────────── */
 function buildVerdict(data) {
-  // Pick worst simulation (most failures)
   const sims = (data.simulations || []).filter(s => s.rows && s.rows.length);
   if (!sims.length) return '';
 
-  // Find simulation with most failures (the "naive" one)
-  let worst = sims[0];
-  let mostFails = 0;
-  sims.forEach(s => {
-    const fails = s.rows.filter(r => !r.passed).length;
-    if (fails > mostFails) { mostFails = fails; worst = s; }
-  });
+  // The verdict is about the naive change, i.e. the simulation that applied edits.
+  // A baseline run (no edits) only documents current behaviour.
+  const naive = sims.find(s => s.edits && s.edits.length);
+  if (!naive) {
+    return `<span>No code change was simulated: the analysed repositories contain nothing to edit for this request.</span>`;
+  }
 
-  const total = worst.rows.length;
-  const fails = worst.rows.filter(r => !r.passed).length;
+  const total = naive.rows.length;
+  const fails = naive.rows.filter(r => !r.passed).length;
   const riskLvl = data.riskLevel || 'high';
-  const uc = {critical:'.u-critical',high:'.u-high',medium:'.u-medium',low:'.u-low'}[riskLvl] || '.u-high';
-  const cls = uc.slice(1);
+  const cls = ['critical','high','medium','low'].includes(riskLvl) ? `u-${riskLvl}` : 'u-high';
 
-  // Check for regulatory/compliance issues
-  let hasRegulatory = (data.items || []).some(item =>
-    (item.issues || []).some(i =>
-      i.kind === 'contradiction' &&
-      /compliance|regulatory|aml|legal/i.test(i.description || '')
-    )
-  );
-
-  // Count files to change
   let totalChange = 0;
   for (const fs of Object.values(data.filesToChange || {})) totalChange += fs.length;
 
+  const editedFiles = [...new Set(naive.edits.map(e => shortFile(e.file)))];
+  const where = editedFiles.length === 1 ? `in ${editedFiles[0]}` : `across ${editedFiles.length} files`;
+  const editWord = naive.edits.length === 1 ? 'The naive one-line fix' : `The naive ${naive.edits.length}-edit fix`;
+
   if (fails === 0) {
-    return `<span>All ${total} simulated calls pass after the change — but verify the files to check manually.</span>`;
+    return `<span>${esc(editWord)} ${esc(where)} passes all ${total} simulated checks — still review the files to check by hand.</span>`;
   }
 
-  let sentence = `Replacing one ${riskLvl === 'low' ? 'style value' : 'function'} breaks `;
-  sentence += `<span class="${cls} u-${riskLvl}">${fails} of ${total} calls</span>`;
-  if (hasRegulatory) {
-    sentence += ` — including the <span class="u-critical">regulatory compliance query</span>`;
+  const regulatoryFail = naive.rows.some(r => !r.passed && /\baml|compliance|regulatory/i.test(r.input || ''));
+  let sentence = `${esc(editWord)} ${esc(where)} leaves <span class="${cls}">${fails} of ${total} checks failing</span>`;
+  if (regulatoryFail) {
+    sentence += ` — including the <span class="u-critical">regulatory AML query</span>`;
   }
-  sentence += `. All ${totalChange > 0 ? totalChange : 'impacted'} must change together.`;
-
+  sentence += totalChange > 1 ? `. All ${totalChange} files must change together.` : '.';
   return sentence;
 }
 
 /* ── build open questions ────────────────────────────────── */
+// Who should answer a question, guessed from its wording (the blocker's owner wins).
+function questionTopic(q, data) {
+  if (data.blockedBy && data.blockedBy.reason === q && data.blockedBy.owner) return data.blockedBy.owner;
+  if (/fraud|risk\b/i.test(q))                          return 'Risk/Fraud';
+  if (/\baml|compliance|regulatory/i.test(q))            return 'Compliance';
+  if (/legal|gdpr|consent|terms/i.test(q))               return 'Legal';
+  if (/design|colou?r|wcag|contrast|dark mode|token/i.test(q)) return 'Design';
+  if (/product decision|product\b/i.test(q))             return 'Product';
+  if (/other teams|external|owner|who owns/i.test(q))    return 'Other teams';
+  return 'Engineering';
+}
+
 function buildQuestions(data) {
   const qs = data.openQuestions || [];
   if (!qs.length) return null;
@@ -1100,7 +1110,8 @@ function buildQuestions(data) {
     const isBlocking = BLOCKING_RE.test(q);
     if (isBlocking) blockCount++;
     const num = String(i + 1).padStart(2, '0');
-    const tag = isBlocking ? 'Compliance · blocking' : 'Platform';
+    const topic = questionTopic(q, data);
+    const tag = isBlocking ? `${topic} · blocking` : topic;
     html += `<div class="q-row">
       <span class="q-num ${isBlocking ? 'blocking' : 'normal'}">${esc(num)}</span>
       <span class="q-tag ${isBlocking ? 'blocking' : ''}">${esc(tag)}</span>
@@ -1131,8 +1142,13 @@ function buildProof(data) {
       <div class="diff-add">+ ${esc(edit.replace.trim())}</div>
     </div>`;
   } else {
-    diffHtml = `<div class="diff-box"><div class="diff-file">${esc(shortRepo(sim.repoPath))}</div><div style="color:#7f8fa3">${esc(sim.testCode || 'Proof-only run')}</div></div>`;
+    diffHtml = `<div class="diff-box"><div class="diff-file">${esc(shortRepo(sim.repoPath))}</div><div style="color:#7f8fa3">No edit — current behaviour measured only</div></div>`;
   }
+  // Short comments from the test file make a good caption; a whole test file does not.
+  const code = (sim.testCode || '').trim();
+  const caption = code && code.length <= 160 && !code.includes('\n')
+    ? code.replace(/^\/\/\s*/, '')
+    : '';  // the section subtitle already says how the simulation ran
 
   // Table rows
   let tableRows = '';
@@ -1141,21 +1157,27 @@ function buildProof(data) {
     const beforeText = typeof row.before === 'string' ? row.before : (row.passed ? 'passes' : 'passes');
     const afterText  = typeof row.after  === 'string' ? row.after  : (row.passed ? 'passes' : 'fails');
 
-    // parse function name from input
-    const fnMatch = row.input.match(/^(\w+)/);
-    const fnName = fnMatch ? fnMatch[1] : row.input.slice(0, 20);
-
-    // consequence
+    // "Call" = the input up to the first " — " / " (" ; the rest is the consequence
+    const input = row.input || '';
+    const cut = input.search(/ — | \(/);
+    const fnName = (cut > 0 ? input.slice(0, cut) : input).trim();
+    const rest = cut > 0 ? input.slice(cut).replace(/^ — /, '').trim() : '';
     const consequence = row.passed
-      ? `<span class="pt-muted">${esc(row.input)}</span>`
-      : `${esc(row.input)}`;
+      ? `<span class="pt-muted">${esc(rest)}</span>`
+      : `${esc(rest)}`;
 
-    const passCls  = (s) => /pass/i.test(s) ? 'pt-pass' : 'pt-fail';
+    // Colour: explicit ✅/❌ markers win, then pass/fail words; "after" falls back to row.passed
+    const status = (s, fallbackPass) => {
+      if (/❌|fail|throws|regression|error/i.test(s)) return 'pt-fail';
+      if (/✅|pass|unchanged/i.test(s)) return 'pt-pass';
+      return fallbackPass ? 'pt-pass' : 'pt-fail';
+    };
+    const passCls = (s) => status(s, true);
     tableRows += `<div class="pt-row">
       <span class="pt-bar ${sev}"></span>
       <span class="pt-fn">${esc(fnName)}</span>
       <span class="${passCls(beforeText)}">${esc(beforeText.replace(/✅|❌/g,'').trim())}</span>
-      <span class="${passCls(afterText)}">${esc(afterText.replace(/✅|❌/g,'').trim())}</span>
+      <span class="${status(afterText, row.passed)}">${esc(afterText.replace(/✅|❌/g,'').trim())}</span>
       <span>${consequence}</span>
     </div>`;
   });
@@ -1163,7 +1185,7 @@ function buildProof(data) {
   return `<div class="proof-grid">
     <div class="diff-block">
       ${diffHtml}
-      <p class="diff-caption">${esc(sim.testCode || 'Simulated in a temporary copy with vitest — the real code was never touched')}</p>
+      ${caption ? `<p class="diff-caption">${esc(caption)}</p>` : ''}
     </div>
     <div class="proof-table-wrap">
       <div class="pt-header"><span></span><span>Call</span><span>Before</span><span>After</span><span>Consequence</span></div>
@@ -1185,7 +1207,7 @@ function buildPlan(data) {
     const action = step.action || '';
 
     // Split action into bold first sentence + rest
-    const splitIdx = action.search(/[.;]/);
+    const splitIdx = action.search(/[.;](?=\s|$)/);
     let titlePart, restPart;
     if (splitIdx !== -1 && splitIdx < 100) {
       titlePart = action.slice(0, splitIdx + 1).trim();
@@ -1241,7 +1263,15 @@ function buildCoverageText(data) {
     }
     return 'Not measured for this run.';
   }
-  return 'Coverage data is present in the report.';
+  const entries = covArr.flatMap(c => Object.entries(c.fileCoverage || {}));
+  const zero = entries.filter(([, v]) => v === 0).map(([f]) => shortFile(f));
+  const low  = entries.filter(([, v]) => v > 0 && v < 80).map(([f, v]) => `${shortFile(f)} (${Math.round(v)} %)`);
+  const code = f => `<code style="font-family:var(--ff-mono);font-size:13px">${esc(f)}</code>`;
+  let txt = `${entries.length} impacted file${entries.length === 1 ? '' : 's'} measured.`;
+  if (zero.length) txt += ` No test covers ${zero.map(code).join(', ')} — add tests before changing ${zero.length === 1 ? 'it' : 'them'}.`;
+  if (low.length)  txt += ` Partly covered: ${low.map(code).join(', ')}.`;
+  if (!zero.length && !low.length) txt += ' All of them are covered at 80 % or more.';
+  return txt;
 }
 
 /* ── build details section ───────────────────────────────── */
@@ -1284,28 +1314,45 @@ function buildGlance(data) {
   });
   const sevParts = Object.entries(counts).filter(([,v])=>v>0).map(([k,v])=>`${v} ${k}`);
 
-  // effort — big serif for text before the first comma, rest in normal body
+  // effort — big serif for text before the first comma, rest in normal body.
+  // A head longer than ~32 chars would fill the whole column, so it drops to body size.
   const effort = data.effortEstimate || '';
   const commaIdx = effort.indexOf(',');
   const effortHead = commaIdx !== -1 ? effort.slice(0, commaIdx) : effort;
   const effortTail = commaIdx !== -1 ? effort.slice(commaIdx) : '';
+  const effortHeadStyle = effortHead.length > 32 ? ' style="font-size:22px;line-height:1.3"' : '';
 
   // files counts
   let changeCount = 0, checkCount = 0;
   for (const fs of Object.values(data.filesToChange || {})) changeCount += fs.length;
   for (const fs of Object.values(data.filesToCheck  || {})) checkCount  += fs.length;
 
-  // blocked by
-  const blockingQ = (data.openQuestions || []).find(q =>
-    /compliance|legal|regulatory|sign.?off|blocking/i.test(q)
-  );
+  // blocked by — explicit field first; older reports fall back to guessing from the questions
+  let blocker = null;
+  if ('blockedBy' in data) {
+    blocker = data.blockedBy;
+  } else {
+    const q = (data.openQuestions || []).find(q =>
+      /compliance|legal|regulatory|sign.?off|blocking/i.test(q)
+    );
+    if (q) blocker = { owner: null, reason: q };
+  }
 
-  // scanned
-  let totalFiles = 0;
-  for (const fs of Object.values(data.filesNotAffected || {})) totalFiles += fs.length;
-  for (const fs of Object.values(data.filesToChange    || {})) totalFiles += fs.length;
-  for (const fs of Object.values(data.filesToCheck     || {})) totalFiles += fs.length;
+  // scanned — real repository sizes (repoFileCounts, from git ls-files) vs files the analysis classified
+  let listedFiles = 0;
+  for (const fs of Object.values(data.filesNotAffected || {})) listedFiles += fs.length;
+  for (const fs of Object.values(data.filesToChange    || {})) listedFiles += fs.length;
+  for (const fs of Object.values(data.filesToCheck     || {})) listedFiles += fs.length;
   const repoCount = (data.repoPaths || []).length;
+  const repoWord = `repositor${repoCount === 1 ? 'y' : 'ies'}`;
+  let repoTotal = 0, hasCounts = false;
+  for (const repo of data.repoPaths || []) {
+    const c = (data.repoFileCounts || {})[repo];
+    if (typeof c === 'number') { repoTotal += c; hasCounts = true; }
+  }
+  const scannedText = hasCounts
+    ? `${repoTotal} files in ${repoCount} ${repoWord} · ${listedFiles} classified`
+    : `${listedFiles} files classified in ${repoCount} ${repoWord}`;
 
   let html = `
     <div class="glance-row">
@@ -1318,7 +1365,7 @@ function buildGlance(data) {
     <div class="glance-row">
       <span class="glance-key">Effort</span>
       <span class="glance-val" style="flex-direction:column;align-items:flex-start;gap:2px">
-        <span class="glance-big">${esc(effortHead)}</span>${effortTail ? `<span style="font-size:14px;color:var(--muted);line-height:1.5">${esc(effortTail.replace(/^,\s*/,''))}</span>` : ''}
+        <span class="glance-big"${effortHeadStyle}>${esc(effortHead)}</span>${effortTail ? `<span style="font-size:14px;color:var(--muted);line-height:1.5">${esc(effortTail.replace(/^,\s*/,''))}</span>` : ''}
       </span>
     </div>
     <div class="glance-row">
@@ -1331,17 +1378,18 @@ function buildGlance(data) {
       </span>
     </div>`;
 
-  if (blockingQ) {
+  if (blocker) {
+    const label = blocker.owner ? `${blocker.owner} sign-off` : 'Sign-off required';
     html += `<div class="glance-row">
       <span class="glance-key">Blocked by</span>
-      <span class="glance-blocked"><span class="blocking-label">Compliance sign-off</span> — ${esc(blockingQ)}</span>
+      <span class="glance-blocked"><span class="blocking-label">${esc(label)}</span> — ${esc(blocker.reason || '')}</span>
     </div>`;
   }
 
-  if (totalFiles > 0 || repoCount > 0) {
+  if (listedFiles > 0 || repoCount > 0) {
     html += `<div class="glance-row">
       <span class="glance-key">Scanned</span>
-      <span style="font-size:15px">${totalFiles} files in ${repoCount} repositor${repoCount === 1 ? 'y' : 'ies'}</span>
+      <span style="font-size:15px">${esc(scannedText)}</span>
     </div>`;
   }
 

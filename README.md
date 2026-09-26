@@ -1,68 +1,108 @@
-# IBM Hackathon GitHub Project Template
+# RuleScope
 
-This GitHub project template is for IBM Hackathon projects. It includes pre-configured security files to help prevent accidental credential commits and potential account suspension during the hackathon.
+**Know everything a change request touches before you write a line of code, with proof.**
 
-## 🚀 Quick Start
+RuleScope is an IBM Bob 2.0 extension, built by team **Kinetic** (Melina & Lisa) for the IBM Bob hackathon. A developer gets a ticket, maybe plain text, a GitHub issue or a PDF spec, for a codebase spread across several repositories. RuleScope turns it into an **Impact Brief**:
 
-1. **Use this template to create your project:**
-   - Click "Use this template" button above and select "Create a new repository"
-   - Name your repository
-   - Click "Create repository"
+- what the request means, and the questions to settle before coding (with who must sign off);
+- every file to **change**, to **check** and **not affected**, per repository;
+- the business rules, technical dependencies and cross-repository links involved, including contradictions and hidden duplicates;
+- a **simulation** of the naive change in a temporary copy of the code, with a before/after table (the real code is never touched);
+- why the current code exists (git history), test-coverage gaps, risk, effort and a step-by-step safe change plan.
 
-2. **Clone your new repository:**
+The evidence rule: every finding comes from a tool result (`git grep`, `git blame`, a vitest run), never from a guess.
 
-   ```bash
-   git clone https://github.com/HACKATHON-ORG/your-repo-name.git
-   cd your-repo-name
-   ```
+## How it works
 
-3. **Set up environment variables:**
+```
+Change request ──► Bob, in the 🔎 RuleScope custom mode
+                     │  skill "impact-brief": one subagent per repository, in parallel
+                     ▼
+                   rulescope-mcp (MCP server, TypeScript, Node 20)
+                     find_candidates · find_cross_repo_links · git_context
+                     simulate_change · coverage_map · save_impact_report
+                     ▼
+                   report/data/<ticketId>.json  ──►  report/index.html
+```
 
-   ```bash
-   # Copy the example file
-   cp .env.example .env
+`save_impact_report` refuses inconsistent reports. Every item needs evidence and a severity, the three file lists cannot overlap, and every file in the change plan must be classified. It also records the real size of each repository (`git ls-files`) and stores repository paths relative to the project, so a report reads the same on any machine.
 
-   # Edit .env with your actual credentials
-   # Use your preferred editor (nano, vim, code, etc.)
-   nano .env
-   ```
+## Repository layout
 
-4. **Verify .gitignore is working:**
+| Path | What it is |
+|---|---|
+| `rulescope-mcp/` | The MCP server (6 tools) and its tests |
+| `.bob/` | The RuleScope custom mode, its rules (`rules-rulescope/`) and the `impact-brief` skill |
+| `report/` | Static report page; one JSON file per analysed ticket in `report/data/` |
+| `demo/` | NovaBank demo: `build-demo.ps1` builds two linked repositories, `tickets/` holds 4 change requests, `GROUND_TRUTH.md` lists what a complete brief must find |
+| `docs/` | Design document and the report mockup |
+| `bob_sessions/` | Every prompt we sent to Bob (`PROMPTS.md`) and the task screenshots |
 
-   ```bash
-   # This should NOT show .env file
-   git status
+## Quick start (Windows, PowerShell)
 
-   # This should confirm .env is ignored
-   git check-ignore -v .env
-   ```
+Prerequisites: Node 20+, git, IBM Bob.
 
-5. **Start developing!**
+```powershell
+# 1. Build the demo repositories (novabank-api + novabank-mobile) in demo-workspace/
+pwsh -File demo/build-demo.ps1        # or: powershell -File demo/build-demo.ps1
 
-## 🔒 Security Features
+# 2. Build and test the MCP server
+cd rulescope-mcp
+npm install
+npm run build
+npm test          # 62 tests pass, 1 skipped (known limitation)
+cd ..
+```
 
-This template includes:
+3. Register the server in `.bob/mcp.json` (git-ignored because it holds a local path):
 
-- **`.gitignore`** - Prevents committing credentials and live session files
-- **`.bobignore`** - Prevents AI assistants from logging credentials
-- **`.env.example`** - Template for your environment variables
+```json
+{
+  "mcpServers": {
+    "rulescope": {
+      "command": "node",
+      "args": ["C:/path/to/rulescope/rulescope-mcp/dist/src/index.js"]
+    }
+  }
+}
+```
 
-## 📋 Before Every Commit
+4. In Bob, switch to the **🔎 RuleScope** mode and send:
 
-Always run this checklist:
+```
+Change request: @demo/tickets/T1-premium-transfer-limit.md
+Repositories to analyze:
+- C:/path/to/rulescope/demo-workspace/novabank-api
+- C:/path/to/rulescope/demo-workspace/novabank-mobile
+Produce the Impact Brief.
+```
 
-- [ ] Reviewed `git diff` for sensitive data
-- [ ] No hardcoded API keys or passwords
-- [ ] `.env` file is NOT in staged changes
-- [ ] No files with "credential" or "secret" in name
-- [ ] Used environment variables for all credentials
+5. Open the reports:
 
-## 🆘 Need Help?
+```powershell
+npx serve report      # then http://localhost:3000/?report=PROD-482
+```
 
-- Read [SECURITY.md](SECURITY.MD) for detailed guidelines
-- Contact hackathon support through mentor channel
-- Ask in the hackathon Slack workspace
+## The demo tickets
 
----
+| Ticket | Request | What RuleScope shows |
+|---|---|---|
+| **PROD-482** | Raise the Premium daily transfer limit to €5,000 | The limit is duplicated in the mobile app, a fraud rule silently blocks €2,001–5,000, and the naive one-line fix breaks Standard customers and 3 existing tests |
+| **LEGAL-31** (PDF) | GDPR right to erasure | PII leaks into logs and an external analytics endpoint; GDPR 30-day erasure collides with 10-year AML retention, so Legal must decide first |
+| **TECH-219** | Migrate from SQLite to PostgreSQL | 4 source files depend on SQLite (driver or SQL dialect), including a hidden regulatory AML report whose owner must sign off; the naive fix leaves 4 of 5 database calls broken; the mobile app is correctly marked not affected |
+| **UI-77** | Make the Transfer button blue | The honest negative: the analysed repositories contain no UI styling, so RuleScope says so and asks where the button lives instead of inventing a file |
 
-**Remember:** Security is everyone's responsibility. When in doubt, ask for help!
+## Reading a report
+
+| Field | Meaning |
+|---|---|
+| **Files: to change** | Every file that will be edited or created, tests included |
+| **Files: to check** | Files that are not edited but must be reviewed (callers, blocking rules) |
+| **Scanned** | Total files in the analysed repositories, then how many the analysis classified |
+| **Effort** | Time and size only; the page computes the file counts |
+| **Risk** | Overall level, then the count of impacted items per severity (critical, high, medium, low) |
+| **Blocked by** | The sign-off needed before release, and from whom |
+
+## Security
+
+The repository keeps the hackathon security setup: `.gitignore` and `.bobignore` exclude credentials and live Bob sessions, and `.env.example` is the only env file committed. See [SECURITY.MD](SECURITY.MD).

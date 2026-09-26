@@ -13,8 +13,8 @@ This file lists every prompt we sent to IBM Bob while building RuleScope, in ord
 
 | # | Member | Bob mode | Task | Screenshot | Bobcoins |
 |---|---|---|---|---|---|
-| 01 | Melina | Plan | Design of RuleScope + MCP server plan | `kinetic_melina_task01_design_plan_summary.png` | 0.86 |
-| 02 | Melina | Agent | MCP server: setup, find_candidates, git_context, find_cross_repo_links | `kinetic_melina_task02_mcp_core_summary.png` | 10.97 |
+| 01 | Melina | Plan | Design of RuleScope + MCP server plan | `kinetic_melinakhettab_task01_design_plan_summary.png` | 0.86 |
+| 02 | Melina | Agent | MCP server: setup, find_candidates, git_context, find_cross_repo_links | `kinetic_melinakhettab_task02_mcp_core_summary.png` | 10.97 |
 | 03 | Melina | Agent | simulate_change (before/after simulation in a temporary worktree) | `kinetic_melina_task03_simulation_summary.png` | 14.10 |
 | 04 | Melina | Agent | save_impact_report + coverage_map | `kinetic_melina_task04_report_summary.png` | 2.97 |
 | 05 | Melina | 🔎 RuleScope | First real run on T1, which exposed a simulation bug | `kinetic_melina_task05_rulescope_T1_summary.png` | 1.51 |
@@ -24,8 +24,9 @@ This file lists every prompt we sent to IBM Bob while building RuleScope, in ord
 | 01 | Lisa | Agent | NovaBank demo repositories generator | `kinetic_lisakhettab_task01_demo_repos_summary.png` | … |
 | 02 | Lisa | Agent | Report web page (first version) | `kinetic_lisakhettab_task02_report_page_summary.png` | … |
 | 03 | Lisa | Agent | Engine fixes: cross-repo detection, coverage, simulation | `kinetic_lisakhettab_task03_fixes_summary.png` | … |
-| 04 | Lisa | 🔎 RuleScope | Impact Brief for T1 (PROD-482) | `kinetic_lisakhettab_task04_rulescope_T1_summary.png` | … |
-| 05 | Lisa | 🔎 RuleScope | Impact Brief for T2 (LEGAL-31, PDF ticket) | `kinetic_lisakhettab_task05_rulescope_T2_summary.png` | … |
+| 04 | Lisa | Agent | Report page: search bar across reports | `kinetic_lisakhettab_task04_report_search_summary.png` | … |
+| 05 | Lisa | 🔎 RuleScope | Impact Brief for T1 (PROD-482) | `kinetic_lisakhettab_task05_rulescope_T1_summary.png` | … |
+| 06 | Lisa | 🔎 RuleScope | Impact Brief for T2 (LEGAL-31, PDF ticket) | `kinetic_lisakhettab_task06_rulescope_T2_summary.png` | … |
 
 ---
 
@@ -283,7 +284,7 @@ Bob loaded the skill and launched **two subagents in parallel**, one per reposit
 ```
 Stop working around simulate_change: it has a known bug (the simulation test file is not picked up when the project's vitest config restricts "include"), it is being fixed. Do NOT run vitest through commands. Skip Step 5 for now and complete Step 6: call save_impact_report with the full brief (leave "simulations" empty and mention in riskRationale that the simulation is pending), then present the Impact Brief in chat.
 ```
-These findings became Lisa's task 03. Lisa re-ran T1 once the engine was fixed (her task 04).
+These findings became Lisa's task 03. Lisa re-ran T1 once the engine was fixed (her task 05).
 
 ### Melina, task 06: T4, "Change the transfer button color" (UI-77)
 ```
@@ -312,7 +313,7 @@ Report: `report/data/TECH-219.json`.
 
 After this run, we added one rule to the skill by hand. Bob had invented the report date, so the skill now tells it to run `Get-Date -Format o` and use the real date.
 
-### Lisa, task 04: T1, "Premium daily transfer limit €5,000" (PROD-482)
+### Lisa, task 05: T1, "Premium daily transfer limit €5,000" (PROD-482)
 ```
 Change request: @demo/tickets/T1-premium-transfer-limit.md
 Repositories to analyze:
@@ -322,7 +323,7 @@ Produce the Impact Brief.
 ```
 
 
-### Lisa, task 05: T2, a GDPR erasure request given as a PDF (LEGAL-31)
+### Lisa, task 06: T2, a GDPR erasure request given as a PDF (LEGAL-31)
 ```
 Change request: @demo/tickets/T2-gdpr-deletion.pdf
 Repositories to analyze:

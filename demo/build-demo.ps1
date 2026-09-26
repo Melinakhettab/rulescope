@@ -41,7 +41,12 @@ if (Test-Path $apiDir) { Remove-Item -Recurse -Force $apiDir }
 New-Item -ItemType Directory -Force -Path $apiDir | Out-Null
 Set-Location $apiDir
 git init -b main | Out-Null
+# Fixed date so the commit history (and every commit hash) is the same on every machine
+$env:GIT_AUTHOR_DATE    = "2023-01-09T09:00:00+01:00"
+$env:GIT_COMMITTER_DATE = "2023-01-09T09:00:00+01:00"
 git -c "user.name=Alice Martin" -c "user.email=alice@novabank.io" commit --allow-empty -m "Initial empty commit" | Out-Null
+$env:GIT_AUTHOR_DATE    = $null
+$env:GIT_COMMITTER_DATE = $null
 
 # ── Commit 1: project scaffold ──────────────────────────────────────────────
 New-Item -ItemType Directory -Force -Path "src/api","src/customers","src/transfers","src/fraud","src/compliance","src/cards","src/notifications","src/logging","src/retention","src/db","tests" | Out-Null
@@ -721,7 +726,12 @@ if (Test-Path $mobileDir) { Remove-Item -Recurse -Force $mobileDir }
 New-Item -ItemType Directory -Force -Path $mobileDir | Out-Null
 Set-Location $mobileDir
 git init -b main | Out-Null
+# Fixed date so the commit history (and every commit hash) is the same on every machine
+$env:GIT_AUTHOR_DATE    = "2023-01-14T09:00:00+01:00"
+$env:GIT_COMMITTER_DATE = "2023-01-14T09:00:00+01:00"
 git -c "user.name=David Kim" -c "user.email=david@novabank.io" commit --allow-empty -m "Initial empty commit" | Out-Null
+$env:GIT_AUTHOR_DATE    = $null
+$env:GIT_COMMITTER_DATE = $null
 
 # ── Commit 1: scaffold ────────────────────────────────────────────────────────
 New-Item -ItemType Directory -Force -Path "src/services","src/transfers","src/screens","src/analytics","tests" | Out-Null

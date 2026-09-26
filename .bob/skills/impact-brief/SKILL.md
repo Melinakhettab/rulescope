@@ -28,7 +28,7 @@ Each subagent:
 - Combine subagent results and cross-repo links.
 - Establish the evaluation order of related rules.
 - Classify files per repository: filesToChange / filesToCheck / filesNotAffected.
-- Give every ImpactItem a "severity": critical (regulatory, legal, security or money-loss impact), high (a core user flow breaks), medium (a secondary flow breaks), low (cosmetic or no functional impact).
+- Give every ImpactItem a "severity" (required field): critical (regulatory, legal, security or money-loss impact), high (a core user flow breaks), medium (a secondary flow breaks), low (cosmetic or no functional impact).
 
 ## Step 5 — Prove with simulation
 - Write a vitest test file with sample inputs: one `it()` per input; the test name describes the input and the expected outcome. Import application code with paths relative to the repository root (e.g. "./src/transfers/limits").
@@ -39,7 +39,13 @@ Each subagent:
 ## Step 6 — Save and present
 - Assess risk level and effort, and write a step-by-step safe change plan.
 - Set createdAt to the real current date and time: run the command `Get-Date -Format o` and use its output. Never invent a date.
-- filesToChange lists only application source files (never test files); put test files that must be updated in filesToCheck. The effort estimate must use the same file count as filesToChange.
+- filesToChange lists EVERY file that will be edited or created — source, test, config (package.json) and new files (migrations) alike.
+- filesToCheck lists only files that are NOT edited but must be reviewed (callers, blocking rules, related reports). A file that blocks the change (e.g. a fraud rule needing sign-off) goes here, never in filesNotAffected.
+- The three lists must not overlap, and every file in changePlan[].targetFiles must be in filesToChange or filesToCheck — save_impact_report rejects the report otherwise.
+- effortEstimate gives time and size only (e.g. "4–6 h backend + 2–3 h mobile, ~50 lines"). Never write file counts in it: the report page computes them.
+- Every ImpactItem must have a "severity" (critical / high / medium / low) — save_impact_report rejects items without one.
+- If the work is blocked by a sign-off, set blockedBy = { "owner": "<team or person>", "reason": "<the blocking question>" }; otherwise set blockedBy to null.
+- Do not fill repoFileCounts: save_impact_report adds it (git ls-files) so the page can show the real repository size.
 - Call save_impact_report with the full ImpactReport (ticketId = the ticket ID, e.g. PROD-482).
 - Then update report/data/index.json: add or replace the entry { "ticketId", "title", "riskLevel" } for this report, keep the other entries, and never list sample.json.
 - Present the brief in chat: request + open questions, entry points, files to CHANGE / CHECK / NOT AFFECTED, contradictions, simulation table, git history, coverage gaps, risk & effort, plan.

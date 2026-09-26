@@ -18,7 +18,7 @@
       "kind": "entry_point",
       "label": "POST /api/transfers",
       "description": "HTTP route that triggers insertTransfer() and getDailyTotal() — both contain SQLite-specific SQL. This is the main write path impacted by the migration.",
-      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "repoPath": "demo-workspace/novabank-api",
       "evidence": [
         {
           "file": "src/api/routes.ts",
@@ -39,7 +39,7 @@
       "kind": "entry_point",
       "label": "AML nightly report — COMP-7",
       "description": "Regulatory compliance query using SQLite datetime arithmetic. Must be rewritten for PostgreSQL. Requires compliance team sign-off.",
-      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "repoPath": "demo-workspace/novabank-api",
       "evidence": [
         {
           "file": "src/compliance/amlReport.ts",
@@ -57,28 +57,28 @@
     }
   ],
   "repoPaths": [
-    "C:/Users/khett/rulescope/demo-workspace/novabank-api",
-    "C:/Users/khett/rulescope/demo-workspace/novabank-mobile"
+    "demo-workspace/novabank-api",
+    "demo-workspace/novabank-mobile"
   ],
   "filesToChange": {
-    "C:/Users/khett/rulescope/demo-workspace/novabank-api": [
+    "demo-workspace/novabank-api": [
       "src/db/db.ts",
       "src/db/transfersRepo.ts",
       "src/db/customersRepo.ts",
-      "src/compliance/amlReport.ts"
+      "src/compliance/amlReport.ts",
+      "package.json",
+      "migrations/001_initial.sql",
+      "tests/transferService.test.ts",
+      "tests/routes.test.ts"
     ],
-    "C:/Users/khett/rulescope/demo-workspace/novabank-mobile": []
+    "demo-workspace/novabank-mobile": []
   },
   "filesToCheck": {
-    "C:/Users/khett/rulescope/demo-workspace/novabank-api": [
-      "tests/transferService.test.ts",
-      "tests/routes.test.ts",
-      "package.json"
-    ],
-    "C:/Users/khett/rulescope/demo-workspace/novabank-mobile": []
+    "demo-workspace/novabank-api": [],
+    "demo-workspace/novabank-mobile": []
   },
   "filesNotAffected": {
-    "C:/Users/khett/rulescope/demo-workspace/novabank-api": [
+    "demo-workspace/novabank-api": [
       "src/transfers/transferService.ts",
       "src/transfers/limits.ts",
       "src/fraud/rules.ts",
@@ -90,7 +90,7 @@
       "tests/limits.test.ts",
       "tests/retention.test.ts"
     ],
-    "C:/Users/khett/rulescope/demo-workspace/novabank-mobile": [
+    "demo-workspace/novabank-mobile": [
       "src/config.ts",
       "src/services/api.ts",
       "src/screens/TransferScreen.ts",
@@ -101,13 +101,18 @@
       "tests/analytics.test.ts"
     ]
   },
+  "repoFileCounts": {
+    "demo-workspace/novabank-api": 24,
+    "demo-workspace/novabank-mobile": 12
+  },
   "items": [
     {
       "id": "technical_dependency:sqlite-db-init",
       "kind": "technical_dependency",
+      "severity": "high",
       "label": "SQLite-backed db.ts — driver comment and interface",
       "description": "The module header references better-sqlite3 as the runtime driver. The initDb()/db_query() abstraction is driver-agnostic; only comments need updating to PostgreSQL.",
-      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "repoPath": "demo-workspace/novabank-api",
       "evidence": [
         {
           "file": "src/db/db.ts",
@@ -126,9 +131,10 @@
     {
       "id": "technical_dependency:sqlite-datetime-now",
       "kind": "technical_dependency",
+      "severity": "high",
       "label": "datetime('now') in INSERT (transfersRepo.ts:16)",
       "description": "SQLite-specific current-timestamp function used in INSERT INTO transfers. PostgreSQL equivalent: NOW() or CURRENT_TIMESTAMP. Also requires changing ? positional params to $1..$4.",
-      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "repoPath": "demo-workspace/novabank-api",
       "evidence": [
         {
           "file": "src/db/transfersRepo.ts",
@@ -153,9 +159,10 @@
     {
       "id": "technical_dependency:sqlite-strftime",
       "kind": "technical_dependency",
+      "severity": "high",
       "label": "strftime('%Y-%m-%d', createdAt) in getDailyTotal (transfersRepo.ts:28)",
       "description": "SQLite-specific date formatting function used to filter transfers by calendar day. PostgreSQL equivalent: DATE(createdAt) or TO_CHAR(createdAt::date, 'YYYY-MM-DD'). Also requires ? → $1, $2.",
-      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "repoPath": "demo-workspace/novabank-api",
       "evidence": [
         {
           "file": "src/db/transfersRepo.ts",
@@ -168,9 +175,10 @@
     {
       "id": "technical_dependency:sqlite-insert-or-replace",
       "kind": "technical_dependency",
+      "severity": "high",
       "label": "INSERT OR REPLACE in upsertCustomer (customersRepo.ts:25)",
       "description": "SQLite-specific upsert syntax. PostgreSQL requires INSERT ... ON CONFLICT (id) DO UPDATE SET ... The customers table must have a PRIMARY KEY or UNIQUE constraint on id for ON CONFLICT to work.",
-      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "repoPath": "demo-workspace/novabank-api",
       "evidence": [
         {
           "file": "src/db/customersRepo.ts",
@@ -189,9 +197,10 @@
     {
       "id": "technical_dependency:sqlite-aml-datetime-interval",
       "kind": "technical_dependency",
+      "severity": "critical",
       "label": "datetime('now', '-24 hours') in AML report (amlReport.ts:26) — COMP-7",
       "description": "SQLite-specific rolling 24-hour window expression in the regulatory AML compliance query. PostgreSQL equivalent: NOW() - INTERVAL '24 hours'. Authored by Carol Durand (compliance). Requires compliance team review.",
-      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "repoPath": "demo-workspace/novabank-api",
       "evidence": [
         {
           "file": "src/compliance/amlReport.ts",
@@ -230,9 +239,10 @@
     {
       "id": "config:missing-pg-driver",
       "kind": "config",
+      "severity": "high",
       "label": "Missing pg driver in package.json",
       "description": "package.json declares no database driver. better-sqlite3 is referenced in db.ts but not in package.json. pg and @types/pg must be added. A schema DDL and migration tool are also absent.",
-      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "repoPath": "demo-workspace/novabank-api",
       "evidence": [
         {
           "file": "package.json",
@@ -265,9 +275,10 @@
     {
       "id": "cross_repo_link:api-transfers-mobile",
       "kind": "cross_repo_link",
+      "severity": "low",
       "label": "POST /api/transfers — provider novabank-api, consumer novabank-mobile",
       "description": "The mobile app calls POST /api/transfers via HTTP. The DB migration does not change the HTTP contract — response shape and status codes are unchanged. NOT AFFECTED.",
-      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "repoPath": "demo-workspace/novabank-api",
       "linkedItemId": null,
       "evidence": [
         {
@@ -281,7 +292,7 @@
   ],
   "simulations": [
     {
-      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "repoPath": "demo-workspace/novabank-api",
       "edits": [],
       "testCode": "// Baseline: all 5 SQLite-dialect tests pass under in-memory fake",
       "rows": [
@@ -316,11 +327,11 @@
           "passed": true
         }
       ],
-      "rawOutput": "Baseline run: all 22 existing tests pass",
+      "rawOutput": "Baseline run: all 17 existing tests pass",
       "worktreePath": "temporary (cleaned up)"
     },
     {
-      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "repoPath": "demo-workspace/novabank-api",
       "edits": [
         {
           "file": "src/db/transfersRepo.ts",
@@ -367,7 +378,7 @@
   ],
   "coverage": [
     {
-      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api",
+      "repoPath": "demo-workspace/novabank-api",
       "fileCoverage": {},
       "functionCoverage": {},
       "uncoveredFiles": [
@@ -378,7 +389,7 @@
     }
   ],
   "riskLevel": "high",
-  "effortEstimate": "4 source files to change, ~15 SQL lines, plus package.json, DDL schema, and test updates. Estimated 1–2 days including compliance review.",
+  "effortEstimate": "1–2 days including compliance review, ~15 SQL lines plus a new DDL schema",
   "riskRationale": "HIGH: (1) amlReport.ts is a regulatory query (COMP-7) — wrong SQL silently returns wrong results without crashing; (2) getDailyTotal drives the daily transfer limit enforcement — a date-comparison bug would silently disable the fraud limit; (3) no migration scripts or DDL exist; (4) @vitest/coverage-v8 is absent so test coverage is unmeasured.",
   "changePlan": [
     {
@@ -388,7 +399,7 @@
       "targetFiles": [
         "package.json"
       ],
-      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api"
+      "repoPath": "demo-workspace/novabank-api"
     },
     {
       "order": 2,
@@ -397,7 +408,7 @@
       "targetFiles": [
         "migrations/001_initial.sql"
       ],
-      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api"
+      "repoPath": "demo-workspace/novabank-api"
     },
     {
       "order": 3,
@@ -406,7 +417,7 @@
       "targetFiles": [
         "src/db/db.ts"
       ],
-      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api"
+      "repoPath": "demo-workspace/novabank-api"
     },
     {
       "order": 4,
@@ -415,7 +426,7 @@
       "targetFiles": [
         "src/db/transfersRepo.ts"
       ],
-      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api"
+      "repoPath": "demo-workspace/novabank-api"
     },
     {
       "order": 5,
@@ -424,7 +435,7 @@
       "targetFiles": [
         "src/db/customersRepo.ts"
       ],
-      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api"
+      "repoPath": "demo-workspace/novabank-api"
     },
     {
       "order": 6,
@@ -433,7 +444,7 @@
       "targetFiles": [
         "src/compliance/amlReport.ts"
       ],
-      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api"
+      "repoPath": "demo-workspace/novabank-api"
     },
     {
       "order": 7,
@@ -443,14 +454,18 @@
         "tests/transferService.test.ts",
         "tests/routes.test.ts"
       ],
-      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api"
+      "repoPath": "demo-workspace/novabank-api"
     },
     {
       "order": 8,
-      "action": "Run full test suite (node node_modules/vitest/vitest.mjs run). All 22 existing tests must pass. Install @vitest/coverage-v8 and measure coverage on the 4 changed files.",
+      "action": "Run full test suite (node node_modules/vitest/vitest.mjs run). All 17 existing tests must pass. Measure coverage on the changed files with @vitest/coverage-v8 (already a devDependency).",
       "rationale": "Validates no regression in business logic. Coverage baseline should be established before production deploy.",
       "targetFiles": [],
-      "repoPath": "C:/Users/khett/rulescope/demo-workspace/novabank-api"
+      "repoPath": "demo-workspace/novabank-api"
     }
-  ]
+  ],
+  "blockedBy": {
+    "owner": "Compliance (Carol Durand)",
+    "reason": "The AML report (COMP-7) was added by Carol Durand (compliance team). They must review and sign off on the SQL change before merge — this is a regulatory query."
+  }
 }
