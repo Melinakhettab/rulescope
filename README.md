@@ -12,6 +12,8 @@ RuleScope is an IBM Bob 2.0 extension, built by team **Kinetic** (Melina & Lisa)
 
 The evidence rule: every finding comes from a tool result (`git grep`, `git blame`, a vitest run), never from a guess.
 
+**Live demo:** [rulescope-mu.vercel.app](https://rulescope-mu.vercel.app/?report=PROD-482), the four Impact Briefs from the NovaBank demo. **How we used IBM Bob:** [`docs/SUBMISSION.md`](docs/SUBMISSION.md) and every prompt, task export and screenshot in [`bob_sessions/`](bob_sessions/PROMPTS.md).
+
 ## How it works
 
 ```
@@ -67,7 +69,7 @@ cd ..
 }
 ```
 
-4. In Bob, switch to the ** RuleScope** mode and send:
+4. In Bob, switch to the **RuleScope** mode and send:
 
 ```
 Change request: @demo/tickets/T1-premium-transfer-limit.md

@@ -403,25 +403,25 @@
         {
           "file": "tests/analytics.test.ts",
           "line": 8,
-          "snippet": "    expect(ev.properties.email).toBe(\"user@example.com\");",
+          "snippet": "    expect(ev.properties.email).toBe(\"u***@example.com\");",
           "tool": "git_grep"
         },
         {
           "file": "tests/analytics.test.ts",
           "line": 9,
-          "snippet": "    expect(ev.properties.iban).toBe(\"FR7630006000011234567890189\");",
+          "snippet": "    expect(ev.properties.iban).toBe(\"FR76***0189\");",
           "tool": "git_grep"
         },
         {
           "file": "tests/analytics.test.ts",
           "line": 16,
-          "snippet": "    expect(ev.properties.email).toBe(\"user@example.com\");",
+          "snippet": "    expect(ev.properties.email).toBe(\"u***@example.com\");",
           "tool": "git_grep"
         },
         {
           "file": "tests/analytics.test.ts",
           "line": 17,
-          "snippet": "    expect(ev.properties.iban).toBe(\"FR7630006000011234567890189\");",
+          "snippet": "    expect(ev.properties.iban).toBe(\"FR76***0189\");",
           "tool": "git_grep"
         }
       ]
@@ -503,23 +503,23 @@
     {
       "repoPath": "demo-workspace/novabank-mobile",
       "edits": [],
-      "testCode": "import { trackTransferInitiated, trackLimitReached } from './src/analytics/events.js'; describe('before fix', () => { it('trackTransferInitiated MUST NOT emit email', () => { const ev = trackTransferInitiated('u1','user@example.com','FR763…',200); expect(ev.properties.email).toBeUndefined(); }); });",
+      "testCode": "import { trackTransferInitiated, trackLimitReached } from './src/analytics/events.js'; describe('before fix', () => { it('trackTransferInitiated MUST NOT emit email', () => { const ev = trackTransferInitiated('u1','u***@example.com','FR76***',200); expect(ev.properties.email).toBeUndefined(); }); });",
       "rows": [
         {
           "input": "trackTransferInitiated: email must not be emitted (BEFORE any fix)",
-          "before": "FAIL — email='user@example.com' present",
-          "after": "FAIL — email='user@example.com' present",
+          "before": "FAIL — email='u***@example.com' present",
+          "after": "FAIL — email='u***@example.com' present",
           "passed": false
         },
         {
           "input": "trackLimitReached: email must not be emitted (BEFORE any fix)",
-          "before": "FAIL — email='user@example.com' present",
-          "after": "FAIL — email='user@example.com' present",
+          "before": "FAIL — email='u***@example.com' present",
+          "after": "FAIL — email='u***@example.com' present",
           "passed": false
         },
         {
           "input": "trackTransferInitiated: IBAN must not be emitted (BEFORE any fix)",
-          "before": "FAIL — iban='FR7630006000011234567890189' present",
+          "before": "FAIL — iban='FR76***0189' present",
           "after": "FAIL — iban present",
           "passed": false
         },
