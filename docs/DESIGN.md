@@ -127,10 +127,17 @@ export interface SimulationRow {
   passed: boolean;  // Whether the test passed after the patch
 }
 
+/** A single search-and-replace edit to apply inside the worktree. */
+export interface SimulationEdit {
+  file: string;     // Relative path to the file inside the repository
+  search: string;   // Exact string to find (must appear exactly once)
+  replace: string;  // String to replace the single occurrence with
+}
+
 export interface SimulationResult {
   repoPath: string;
-  /** The patch that was applied (unified diff), or empty string for a proof-only run */
-  patch: string;
+  /** The edits that were applied, or empty array for a proof-only run */
+  edits: SimulationEdit[];
   /** The test code that was executed (vitest) */
   testCode: string;
   rows: SimulationRow[];
@@ -268,7 +275,7 @@ If a provider exists but no consumer is found in the analyzed repositories, appe
 ```
 simulate_change(
   repoPath: string,
-  patch: string,      // unified diff; may be empty string for a proof-only run
+  edits: Array<{ file: string; search: string; replace: string }>,
   testCode: string    // vitest test file content
 ) → SimulationResult
 ```
@@ -278,11 +285,11 @@ simulate_change(
 1. Create a temporary git worktree: `git worktree add <os.tmpdir()>/rulescope-sim-<uuid> HEAD`.
 2. Symlink the original repository's `node_modules` into the worktree using `fs.symlink` with type `"junction"` (Windows-compatible) so that vitest and all project dependencies are immediately available without a separate `npm install`.
 3. Write `testCode` to `__rulescope_sim__.test.ts` inside the worktree.
-4. Run `npx vitest run __rulescope_sim__.test.ts --reporter=json` → capture `before` result.
-5. Apply `patch` via `git apply` (if non-empty).
+4. Run `node <node_modules>/vitest/vitest.mjs run __rulescope_sim__.test.ts --reporter=json` → capture `before` result.
+5. For each edit: read the target file, verify `search` appears exactly once (error otherwise), replace it, write the file back. Pass an empty array for a proof-only run.
 6. Run vitest again → capture `after` result.
 7. Parse both vitest JSON outputs into `SimulationRow[]`.
-8. **Always** remove the worktree: `git worktree remove --force <path>` (the junction is removed as part of the worktree directory).
+8. **Always** remove the `node_modules` junction first (`fs.unlinkSync`), then remove the worktree: `git worktree remove --force <path>`, then `git worktree prune`.
 9. Return `SimulationResult`.
 
 Never modifies the real working tree. The real repository is untouched.
