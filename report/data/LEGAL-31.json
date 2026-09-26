@@ -1,0 +1,748 @@
+{
+  "$schema": "https://rulescope/impact-report/v1",
+  "ticketId": "LEGAL-31",
+  "title": "GDPR Right to Erasure — delete all personal data (email, phone, IBAN) within 30 days",
+  "createdAt": "2026-09-26T19:36:26.709+02:00",
+  "requestSummary": "On customer request, all personal data (email, phone, IBAN) must be deleted within 30 days across all NovaBank systems including the mobile app. Currently no erasure path exists. PII is also leaked to application logs and an external analytics endpoint, creating secondary data stores that DB deletion alone cannot clear. A hard conflict exists between GDPR Art. 17 (30-day erasure) and COMP-3 AML retention (10-year transaction history).",
+  "openQuestions": [
+    "Does anonymisation (NULLing email/phone/IBAN while keeping financial records) satisfy both GDPR Art. 17 AND COMP-3 AML retention simultaneously? Legal must confirm before coding.",
+    "What is the log retention period, and can already-written log lines containing PII be scrubbed retroactively?",
+    "Should IBAN be masked on GET /api/accounts/:id reads (src/db/accountsRepo.ts:12)? Product decision.",
+    "Which team owns the analytics purge API? Can historical analytics records be deleted for a given user?",
+    "Where is phone number stored in the mobile app — backend profile only, or also native storage (AsyncStorage, SQLite, SecureStore)?",
+    "Does the notification queue system persist IBAN-containing messages (src/notifications/templates.ts:2)? Who owns that system?",
+    "Unknown external consumers of novabank-api — verify with other teams whether additional services cache PII."
+  ],
+  "entryPoints": [
+    {
+      "id": "entry_point:api-routes-delete",
+      "kind": "entry_point",
+      "label": "Missing DELETE /api/customers/:id route",
+      "description": "No HTTP route exists to trigger customer erasure. The router in routes.ts only handles POST /api/transfers, GET /api/limits, and GET /api/accounts/:id. This endpoint is the mandatory entry point for the GDPR erasure request.",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api",
+      "evidence": [
+        {
+          "file": "src/api/routes.ts",
+          "line": 30,
+          "snippet": "export function router(req: RouteRequest): Promise<RouteResponse>",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/api/routes.ts",
+          "line": 42,
+          "snippet": "addRoute(\"POST\", \"/api/transfers\", ...",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/api/routes.ts",
+          "line": 54,
+          "snippet": "addRoute(\"GET\", \"/api/limits\", ...",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/api/routes.ts",
+          "line": 59,
+          "snippet": "addRoute(\"GET\", \"/api/accounts/:id\", ...",
+          "tool": "git_grep"
+        }
+      ]
+    },
+    {
+      "id": "entry_point:customers-repo-no-delete",
+      "kind": "entry_point",
+      "label": "Customer data layer — no anonymise or delete function",
+      "description": "src/db/customersRepo.ts stores email, phone, IBAN. Only getCustomer() and upsertCustomer() exist. No anonymiseCustomer() or deleteCustomer() function exists.",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api",
+      "evidence": [
+        {
+          "file": "src/db/customersRepo.ts",
+          "line": 8,
+          "snippet": "  email: string;",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/db/customersRepo.ts",
+          "line": 9,
+          "snippet": "  phone: string;",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/db/customersRepo.ts",
+          "line": 10,
+          "snippet": "  iban: string;",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/db/customersRepo.ts",
+          "line": 14,
+          "snippet": "export function getCustomer(id: string): CustomerRow | undefined {",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/db/customersRepo.ts",
+          "line": 22,
+          "snippet": "export function upsertCustomer(c: CustomerRow): void {",
+          "tool": "git_grep"
+        }
+      ]
+    },
+    {
+      "id": "entry_point:analytics-pii-emission",
+      "kind": "entry_point",
+      "label": "Analytics events emit raw email and IBAN (two emission sites)",
+      "description": "Both trackTransferInitiated (L9-26) and trackLimitReached (L28-37) send raw email and IBAN to an external analytics endpoint on every transfer. These are secondary PII stores outside the database that cannot be erased by DB deletion alone.",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile",
+      "evidence": [
+        {
+          "file": "src/analytics/events.ts",
+          "line": 8,
+          "snippet": "// Sends user identity including email and IBAN in analytics events",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/analytics/events.ts",
+          "line": 19,
+          "snippet": "      email,",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/analytics/events.ts",
+          "line": 20,
+          "snippet": "      iban,",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/analytics/events.ts",
+          "line": 35,
+          "snippet": "    properties: { userId, email, iban },",
+          "tool": "git_grep"
+        }
+      ],
+      "issues": [
+        {
+          "kind": "duplicate",
+          "description": "Naive fix of only trackTransferInitiated leaves trackLimitReached (L28-37) still emitting raw PII. Simulation proves both functions must be patched in the same PR.",
+          "evidence": [
+            {
+              "file": "src/analytics/events.ts",
+              "line": 28,
+              "snippet": "export function trackLimitReached(",
+              "tool": "vitest"
+            },
+            {
+              "file": "src/analytics/events.ts",
+              "line": 35,
+              "snippet": "    properties: { userId, email, iban },",
+              "tool": "vitest"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "entry_point:mobile-api-no-delete",
+      "kind": "entry_point",
+      "label": "Mobile API client — no deleteAccount function",
+      "description": "src/services/api.ts has postTransfer, getLimits, and getAccount but no deleteAccount(customerId) function to call the future DELETE /api/customers/:id endpoint.",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile",
+      "evidence": [
+        {
+          "file": "src/services/api.ts",
+          "line": 10,
+          "snippet": "export async function postTransfer(payload: TransferPayload): Promise<unknown> {",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/services/api.ts",
+          "line": 19,
+          "snippet": "export async function getLimits(): Promise<{ dailyLimit: number }> {",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/services/api.ts",
+          "line": 24,
+          "snippet": "export async function getAccount(id: string): Promise<unknown> {",
+          "tool": "git_grep"
+        }
+      ]
+    }
+  ],
+  "repoPaths": [
+    "C:/Users/lisak/rulescope/demo-workspace/novabank-api",
+    "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile"
+  ],
+  "filesToChange": {
+    "C:/Users/lisak/rulescope/demo-workspace/novabank-api": [
+      "src/db/customersRepo.ts",
+      "src/api/routes.ts",
+      "src/logging/logger.ts",
+      "src/customers/index.ts"
+    ],
+    "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile": [
+      "src/analytics/events.ts",
+      "tests/analytics.test.ts",
+      "src/services/api.ts",
+      "src/screens/TransferScreen.ts"
+    ]
+  },
+  "filesToCheck": {
+    "C:/Users/lisak/rulescope/demo-workspace/novabank-api": [
+      "src/retention/policy.ts",
+      "src/compliance/amlReport.ts",
+      "src/db/accountsRepo.ts",
+      "src/db/transfersRepo.ts",
+      "src/notifications/templates.ts"
+    ],
+    "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile": []
+  },
+  "filesNotAffected": {
+    "C:/Users/lisak/rulescope/demo-workspace/novabank-api": [
+      "src/fraud/rules.ts",
+      "src/transfers/limits.ts",
+      "src/cards/cardLimits.ts",
+      "src/db/db.ts"
+    ],
+    "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile": [
+      "src/transfers/validateTransfer.ts"
+    ]
+  },
+  "items": [
+    {
+      "id": "business_rule:aml-retention-conflict",
+      "kind": "business_rule",
+      "label": "BLOCKER — GDPR Art. 17 vs. COMP-3 AML 10-year retention",
+      "description": "RETENTION_YEARS=10 in retention/policy.ts (COMP-3 AML obligation, commit c9ba91fd, Bob Chen 2024-06-10) directly contradicts the GDPR 30-day erasure requirement. A customer with transfers in the last 10 years cannot be fully deleted without violating AML law. Legal must confirm whether anonymisation (NULLing PII fields, keeping financial records) satisfies both obligations.",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api",
+      "evaluationOrder": 1,
+      "evidence": [
+        {
+          "file": "src/retention/policy.ts",
+          "line": 2,
+          "snippet": "// keep transaction history for 10 years - AML obligation COMP-3",
+          "tool": "git_blame"
+        },
+        {
+          "file": "src/retention/policy.ts",
+          "line": 3,
+          "snippet": "export const RETENTION_YEARS = 10;",
+          "tool": "git_blame"
+        },
+        {
+          "file": "src/retention/policy.ts",
+          "line": 5,
+          "snippet": "export function isEligibleForDeletion(createdAt: Date): boolean {",
+          "tool": "git_blame"
+        }
+      ],
+      "issues": [
+        {
+          "kind": "contradiction",
+          "description": "GDPR requires erasure within 30 days; COMP-3 requires retention for 10 years. These are mutually exclusive for any customer with a transaction in the last 10 years.",
+          "evidence": [
+            {
+              "file": "src/retention/policy.ts",
+              "line": 3,
+              "snippet": "export const RETENTION_YEARS = 10;",
+              "tool": "git_blame"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "technical_dependency:customers-repo-pii-storage",
+      "kind": "technical_dependency",
+      "label": "SQLite customers table stores email, phone, IBAN — no delete/anonymise function",
+      "description": "customersRepo.ts maps all three PII fields. No erasure function exists. Must add anonymiseCustomer(id) that NULLs email/phone/iban fields, gated by isEligibleForDeletion().",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api",
+      "evaluationOrder": 2,
+      "evidence": [
+        {
+          "file": "src/db/customersRepo.ts",
+          "line": 8,
+          "snippet": "  email: string;",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/db/customersRepo.ts",
+          "line": 9,
+          "snippet": "  phone: string;",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/db/customersRepo.ts",
+          "line": 10,
+          "snippet": "  iban: string;",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/db/customersRepo.ts",
+          "line": 16,
+          "snippet": "\"SELECT id, name, email, phone, iban, tier FROM customers WHERE id = ?\"",
+          "tool": "git_blame"
+        }
+      ]
+    },
+    {
+      "id": "entry_point:logger-pii-leak",
+      "kind": "entry_point",
+      "label": "Logger emits raw email and IBAN on every transfer",
+      "description": "logTransferEvent() in logger.ts writes email and iban to stdout on every transfer (commit 649c8074, Alice Martin 2024-04-05). DB deletion does not scrub already-written log lines. This is a secondary PII store in the log system.",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api",
+      "evidence": [
+        {
+          "file": "src/logging/logger.ts",
+          "line": 3,
+          "snippet": "// Logs customer PII on every transfer event",
+          "tool": "git_blame"
+        },
+        {
+          "file": "src/logging/logger.ts",
+          "line": 10,
+          "snippet": "`[TRANSFER] customerId=${customer.id} email=${customer.email} iban=${customer.iban} amount=${amount} status=${status}`",
+          "tool": "git_blame"
+        }
+      ],
+      "issues": [
+        {
+          "kind": "hidden_usage",
+          "description": "Already-written log lines persist PII even after DB row deletion. Log retention/redaction policy required from Infra/Legal.",
+          "evidence": [
+            {
+              "file": "src/logging/logger.ts",
+              "line": 10,
+              "snippet": "email=${customer.email} iban=${customer.iban}",
+              "tool": "git_blame"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "entry_point:analytics-pii-leak",
+      "kind": "entry_point",
+      "label": "Analytics: raw email+IBAN sent externally in TWO functions",
+      "description": "Both trackTransferInitiated (L19-20) and trackLimitReached (L35) in analytics/events.ts send raw email and IBAN to an external analytics system. Commit 9296eb2, David Kim 2023-10-02. Naive fix of only one function leaves the other still leaking PII (simulation-proven).",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile",
+      "evidence": [
+        {
+          "file": "src/analytics/events.ts",
+          "line": 19,
+          "snippet": "      email,",
+          "tool": "git_blame"
+        },
+        {
+          "file": "src/analytics/events.ts",
+          "line": 20,
+          "snippet": "      iban,",
+          "tool": "git_blame"
+        },
+        {
+          "file": "src/analytics/events.ts",
+          "line": 35,
+          "snippet": "    properties: { userId, email, iban },",
+          "tool": "git_blame"
+        }
+      ],
+      "issues": [
+        {
+          "kind": "duplicate",
+          "description": "Two emission sites. Simulation shows naive patch of trackTransferInitiated alone leaves trackLimitReached emitting PII. Both must be fixed in the same PR.",
+          "evidence": [
+            {
+              "file": "src/analytics/events.ts",
+              "line": 28,
+              "snippet": "export function trackLimitReached(",
+              "tool": "vitest"
+            },
+            {
+              "file": "src/analytics/events.ts",
+              "line": 35,
+              "snippet": "    properties: { userId, email, iban },",
+              "tool": "vitest"
+            }
+          ]
+        },
+        {
+          "kind": "unknown_external_consumer",
+          "description": "Analytics records are stored in an external analytics system outside these repositories. Deleting the DB customer row does NOT erase analytics history. Analytics provider must be contacted to implement a PII purge API.",
+          "evidence": [
+            {
+              "file": "src/analytics/events.ts",
+              "line": 24,
+              "snippet": "// In production this calls the analytics endpoint",
+              "tool": "git_grep"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "test:analytics-tests-assert-pii-present",
+      "kind": "test",
+      "label": "Analytics tests assert PII IS present — must be inverted",
+      "description": "tests/analytics.test.ts L8-9 and L16-17 assert that email and IBAN ARE present in event properties. After the fix these tests will fail correctly (they encode the wrong behavior). Must be inverted in the same PR as the events.ts fix.",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile",
+      "evidence": [
+        {
+          "file": "tests/analytics.test.ts",
+          "line": 5,
+          "snippet": "it(\"includes email and IBAN in event properties\", () => {",
+          "tool": "git_grep"
+        },
+        {
+          "file": "tests/analytics.test.ts",
+          "line": 8,
+          "snippet": "    expect(ev.properties.email).toBe(\"user@example.com\");",
+          "tool": "git_grep"
+        },
+        {
+          "file": "tests/analytics.test.ts",
+          "line": 9,
+          "snippet": "    expect(ev.properties.iban).toBe(\"FR7630006000011234567890189\");",
+          "tool": "git_grep"
+        },
+        {
+          "file": "tests/analytics.test.ts",
+          "line": 16,
+          "snippet": "    expect(ev.properties.email).toBe(\"user@example.com\");",
+          "tool": "git_grep"
+        },
+        {
+          "file": "tests/analytics.test.ts",
+          "line": 17,
+          "snippet": "    expect(ev.properties.iban).toBe(\"FR7630006000011234567890189\");",
+          "tool": "git_grep"
+        }
+      ]
+    },
+    {
+      "id": "technical_dependency:aml-report-zero-coverage",
+      "kind": "technical_dependency",
+      "label": "AML nightly report — 0% coverage, external scheduler dependency",
+      "description": "src/compliance/amlReport.ts has 0% test coverage and is called by an external nightly AML scheduler (COMP-7). It reads toIban from the transfers table. Any schema change to transfers risks breaking regulatory reporting silently.",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api",
+      "evidence": [
+        {
+          "file": "src/compliance/amlReport.ts",
+          "line": 1,
+          "snippet": "// AML nightly report - regulatory requirement COMP-7",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/compliance/amlReport.ts",
+          "line": 22,
+          "snippet": "SELECT fromAccountId, toIban, amount, createdAt FROM transfers",
+          "tool": "git_grep"
+        }
+      ],
+      "issues": [
+        {
+          "kind": "unknown_external_consumer",
+          "description": "External nightly AML scheduler calls this function. Its scheduler is outside these repositories — verify with the AML team before touching the transfers schema.",
+          "evidence": [
+            {
+              "file": "src/compliance/amlReport.ts",
+              "line": 1,
+              "snippet": "// AML nightly report - regulatory requirement COMP-7",
+              "tool": "git_grep"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "technical_dependency:notifications-iban-in-messages",
+      "kind": "technical_dependency",
+      "label": "Notification templates embed raw IBAN in message text",
+      "description": "src/notifications/templates.ts:2 embeds toIban directly in the transferConfirmed message string. 0% coverage. If downstream notification queues persist these messages, they form a secondary PII store outside this repo.",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api",
+      "evidence": [
+        {
+          "file": "src/notifications/templates.ts",
+          "line": 2,
+          "snippet": "  transferConfirmed: (amount: number, toIban: string) =>",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/notifications/templates.ts",
+          "line": 3,
+          "snippet": "`Your transfer of €${amount} to ${toIban} has been confirmed.`",
+          "tool": "git_grep"
+        }
+      ],
+      "issues": [
+        {
+          "kind": "unknown_external_consumer",
+          "description": "Unknown whether notification delivery system persists message bodies. If so, IBAN appears in a secondary data store that DB deletion cannot clear.",
+          "evidence": [
+            {
+              "file": "src/notifications/templates.ts",
+              "line": 3,
+              "snippet": "`Your transfer of €${amount} to ${toIban} has been confirmed.`",
+              "tool": "git_grep"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "simulations": [
+    {
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile",
+      "edits": [],
+      "testCode": "import { trackTransferInitiated, trackLimitReached } from './src/analytics/events.js'; describe('before fix', () => { it('trackTransferInitiated MUST NOT emit email', () => { const ev = trackTransferInitiated('u1','user@example.com','FR763…',200); expect(ev.properties.email).toBeUndefined(); }); });",
+      "rows": [
+        {
+          "input": "trackTransferInitiated: email must not be emitted (BEFORE any fix)",
+          "before": "FAIL — email='user@example.com' present",
+          "after": "FAIL — email='user@example.com' present",
+          "passed": false
+        },
+        {
+          "input": "trackLimitReached: email must not be emitted (BEFORE any fix)",
+          "before": "FAIL — email='user@example.com' present",
+          "after": "FAIL — email='user@example.com' present",
+          "passed": false
+        },
+        {
+          "input": "trackTransferInitiated: IBAN must not be emitted (BEFORE any fix)",
+          "before": "FAIL — iban='FR7630006000011234567890189' present",
+          "after": "FAIL — iban present",
+          "passed": false
+        },
+        {
+          "input": "trackLimitReached: IBAN must not be emitted (BEFORE any fix)",
+          "before": "FAIL — iban present",
+          "after": "FAIL — iban present",
+          "passed": false
+        }
+      ],
+      "rawOutput": "All four GDPR PII assertions fail — current code emits raw email and IBAN in both functions.",
+      "worktreePath": "(temporary worktree — cleaned up)"
+    },
+    {
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile",
+      "edits": [
+        {
+          "file": "src/analytics/events.ts",
+          "search": "    properties: {\n      userId,\n      email,\n      iban,\n      amount,\n    },",
+          "replace": "    properties: {\n      userId,\n      amount,\n    },"
+        }
+      ],
+      "testCode": "Naive fix: only trackTransferInitiated patched. Tests for trackLimitReached.",
+      "rows": [
+        {
+          "input": "trackTransferInitiated: email removed (naive fix)",
+          "before": "FAIL — email present",
+          "after": "PASS",
+          "passed": true
+        },
+        {
+          "input": "trackTransferInitiated: IBAN removed (naive fix)",
+          "before": "FAIL — IBAN present",
+          "after": "PASS",
+          "passed": true
+        },
+        {
+          "input": "trackLimitReached STILL emits raw email after naive patch",
+          "before": "FAIL",
+          "after": "FAIL — email still present",
+          "passed": false
+        },
+        {
+          "input": "trackLimitReached STILL emits raw IBAN after naive patch",
+          "before": "FAIL",
+          "after": "FAIL — IBAN still present",
+          "passed": false
+        }
+      ],
+      "rawOutput": "Naive single-function fix is incomplete: trackLimitReached (L28-37) still emits raw email and IBAN. Both functions must be patched in the same PR.",
+      "worktreePath": "(temporary worktree — cleaned up)"
+    }
+  ],
+  "coverage": [
+    {
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api",
+      "fileCoverage": {
+        "src/api/routes.ts": 97,
+        "src/compliance/amlReport.ts": 0,
+        "src/customers/index.ts": 0,
+        "src/db/customersRepo.ts": 76,
+        "src/db/transfersRepo.ts": 100,
+        "src/logging/logger.ts": 100,
+        "src/notifications/templates.ts": 0,
+        "src/retention/policy.ts": 100
+      },
+      "functionCoverage": {
+        "src/api/routes.ts:addRoute": 100,
+        "src/api/routes.ts:router": 100,
+        "src/compliance/amlReport.ts:getAmlCandidates": 0,
+        "src/customers/index.ts:(empty-report)": 0,
+        "src/db/customersRepo.ts:getCustomer": 100,
+        "src/db/customersRepo.ts:upsertCustomer": 0,
+        "src/logging/logger.ts:logTransferEvent": 100,
+        "src/notifications/templates.ts:(empty-report)": 0,
+        "src/retention/policy.ts:isEligibleForDeletion": 100
+      },
+      "uncoveredFiles": [
+        "src/customers/index.ts",
+        "src/compliance/amlReport.ts",
+        "src/notifications/templates.ts"
+      ]
+    },
+    {
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile",
+      "fileCoverage": {
+        "src/analytics/events.ts": 100,
+        "src/screens/TransferScreen.ts": 100,
+        "src/services/api.ts": 100,
+        "src/transfers/validateTransfer.ts": 88
+      },
+      "functionCoverage": {
+        "src/analytics/events.ts:trackTransferInitiated": 100,
+        "src/analytics/events.ts:trackLimitReached": 100,
+        "src/screens/TransferScreen.ts:submitTransfer": 100,
+        "src/services/api.ts:postTransfer": 100,
+        "src/services/api.ts:getLimits": 100,
+        "src/services/api.ts:getAccount": 100,
+        "src/transfers/validateTransfer.ts:validateTransfer": 100
+      },
+      "uncoveredFiles": []
+    }
+  ],
+  "riskLevel": "high",
+  "effortEstimate": "8 files across 2 repos, ~80–100 lines changed; plus external coordination with analytics provider, AML team, Legal, and Infra",
+  "riskRationale": "No erasure path exists — compliance gap is total. Hard regulatory conflict (GDPR vs. AML) blocks full deletion. Two independent PII leaks (logs, analytics) require external remediation beyond these repos. Analytics has a hidden duplicate emission site that a naive fix misses (simulation-proven). AML report has 0% test coverage near a schema change zone.",
+  "changePlan": [
+    {
+      "order": 1,
+      "action": "GATE — Obtain Legal written sign-off that anonymisation (NULLing email/phone/iban, retaining financial records) satisfies both GDPR Art. 17 and COMP-3 AML retention obligation.",
+      "rationale": "Without this decision, any erasure implementation may violate AML law. All subsequent DB-touching steps depend on this answer.",
+      "targetFiles": [
+        "src/retention/policy.ts"
+      ],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api"
+    },
+    {
+      "order": 2,
+      "action": "Remove email and iban from the logTransferEvent() log line in src/logging/logger.ts:10; log only customerId. Separately, coordinate with Infra on log scrubbing policy for already-written records.",
+      "rationale": "This is safe and independent of the AML gate. It stops future PII accumulation in logs immediately.",
+      "targetFiles": [
+        "src/logging/logger.ts"
+      ],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api"
+    },
+    {
+      "order": 3,
+      "action": "Add anonymiseCustomer(id: string): void to src/db/customersRepo.ts — sets email, phone, iban to NULL for the given customer. Gate: check isEligibleForDeletion before NULLing; return a status indicating whether erasure was blocked.",
+      "rationale": "This is the core DB-layer erasure function, prerequisite for the API endpoint.",
+      "targetFiles": [
+        "src/db/customersRepo.ts"
+      ],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api"
+    },
+    {
+      "order": 4,
+      "action": "Add DELETE /api/customers/:id to src/api/routes.ts: calls anonymiseCustomer, returns 204 on success, 409 with reason when AML retention gate blocks erasure.",
+      "rationale": "Provides the HTTP entry point required by GDPR Art. 17 for user-initiated erasure requests.",
+      "targetFiles": [
+        "src/api/routes.ts"
+      ],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api"
+    },
+    {
+      "order": 5,
+      "action": "Update src/customers/index.ts to re-export anonymiseCustomer (and deleteCustomer if full deletion is permitted by Legal).",
+      "rationale": "The public customer module facade must expose the new functions.",
+      "targetFiles": [
+        "src/customers/index.ts"
+      ],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api"
+    },
+    {
+      "order": 6,
+      "action": "Write vitest tests for the new erasure endpoint: 204 success path, 409 within AML retention window, PII fields absent after anonymisation, existing transfer tests unaffected, AML report query unaffected.",
+      "rationale": "Ensures the erasure path is regression-tested and the AML gate cannot be bypassed.",
+      "targetFiles": [
+        "tests/routes.test.ts"
+      ],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api"
+    },
+    {
+      "order": 7,
+      "action": "In the SAME PR: fix BOTH trackTransferInitiated AND trackLimitReached in src/analytics/events.ts to remove email and iban from event properties. Do NOT fix only one — simulation proves the other keeps emitting PII.",
+      "rationale": "Two independent emission sites — single-function fix is insufficient. Simulation result is conclusive.",
+      "targetFiles": [
+        "src/analytics/events.ts"
+      ],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile"
+    },
+    {
+      "order": 8,
+      "action": "In the SAME PR as step 7: invert all assertions in tests/analytics.test.ts from 'PII is present' to 'PII is absent'.",
+      "rationale": "Current tests encode the wrong behaviour and will fail correctly after the fix. Ship test and code together.",
+      "targetFiles": [
+        "tests/analytics.test.ts"
+      ],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile"
+    },
+    {
+      "order": 9,
+      "action": "Add deleteAccount(customerId: string): Promise<void> to src/services/api.ts calling DELETE /api/customers/:id.",
+      "rationale": "Mobile app needs an API client function to trigger erasure from the UI.",
+      "targetFiles": [
+        "src/services/api.ts"
+      ],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile"
+    },
+    {
+      "order": 10,
+      "action": "Add a 'Delete My Account' action to src/screens/TransferScreen.ts (or a dedicated AccountScreen) that calls deleteAccount() and clears local application state.",
+      "rationale": "GDPR Art. 17 requires a user-accessible mechanism to exercise the right to erasure.",
+      "targetFiles": [
+        "src/screens/TransferScreen.ts"
+      ],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile"
+    },
+    {
+      "order": 11,
+      "action": "Contact analytics provider: request a historical PII purge API for a given userId, confirm deletion SLA, and document the process for handling incoming GDPR erasure requests.",
+      "rationale": "Analytics records are a secondary PII store outside these repos; DB deletion does not cover them.",
+      "targetFiles": [],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile"
+    },
+    {
+      "order": 12,
+      "action": "Investigate phone number storage in the mobile native layer (AsyncStorage, SQLite, SecureStore, Keychain) and include any native stores in the deletion scope.",
+      "rationale": "The ticket requires phone deletion; phone is absent from all JS source in novabank-mobile, suggesting it may be in native code or backend-only.",
+      "targetFiles": [],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile"
+    },
+    {
+      "order": 13,
+      "action": "Add test coverage to src/compliance/amlReport.ts (currently 0%) before making any schema changes to the transfers table.",
+      "rationale": "External nightly AML scheduler depends on toIban in transfers; 0% coverage means schema changes fail silently.",
+      "targetFiles": [
+        "src/compliance/amlReport.ts"
+      ],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api"
+    },
+    {
+      "order": 14,
+      "action": "Audit notification delivery system: confirm whether IBAN-containing notification messages in src/notifications/templates.ts:2-3 are persisted by the queue, and remediate if confirmed.",
+      "rationale": "Persisted notification bodies are a secondary IBAN store that DB deletion cannot clear.",
+      "targetFiles": [
+        "src/notifications/templates.ts"
+      ],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api"
+    },
+    {
+      "order": 15,
+      "action": "Notify other teams: unknown external consumers may be caching PII from novabank-api responses (e.g. GET /api/accounts/:id returns raw IBAN). Request inventory of all downstream API consumers.",
+      "rationale": "Unknown external consumers are an open risk that cannot be resolved from within these repositories.",
+      "targetFiles": [],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api"
+    }
+  ]
+}
