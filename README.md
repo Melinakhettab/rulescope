@@ -15,7 +15,7 @@ The evidence rule: every finding comes from a tool result (`git grep`, `git blam
 ## How it works
 
 ```
-Change request ──► Bob, in the 🔎 RuleScope custom mode
+Change request ──► Bob, in the RuleScope custom mode
                      │  skill "impact-brief": one subagent per repository, in parallel
                      ▼
                    rulescope-mcp (MCP server, TypeScript, Node 20)
@@ -67,7 +67,7 @@ cd ..
 }
 ```
 
-4. In Bob, switch to the **🔎 RuleScope** mode and send:
+4. In Bob, switch to the ** RuleScope** mode and send:
 
 ```
 Change request: @demo/tickets/T1-premium-transfer-limit.md
