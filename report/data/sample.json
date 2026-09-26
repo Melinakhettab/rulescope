@@ -1,0 +1,375 @@
+{
+  "$schema": "https://rulescope/impact-report/v1",
+  "ticketId": "sample",
+  "title": "Increase Premium transfer limit from $50 000 to $100 000",
+  "createdAt": "2025-01-28T14:22:00Z",
+
+  "requestSummary": "Raise the daily outbound wire-transfer ceiling for customers on the Premium tier from the current hard-coded cap of $50 000 to $100 000. The change must propagate consistently across the core-banking validation service, the mobile-banking API gateway, the customer-facing React Native app (display and input guard), and the compliance audit-log schema. Regulatory guidance (BSA / AML Pillar 3) requires that any threshold change is accompanied by an enhanced-due-diligence flag when the new limit is first exercised.",
+
+  "openQuestions": [
+    "Should the $100 000 limit also apply to batch (scheduled) transfers, or only to manual single transfers initiated in-app?",
+    "Is the Premium tier defined by a contract flag in the CRM, or by a computed balance/product rule in core-banking? Both codepaths exist; confirm which is authoritative.",
+    "The compliance team's wire-transfer review queue triggers at ≥ $10 000 (FINCEN threshold). The existing 'large-transfer' alert fires at $50 000. Does the alert threshold change too, or stay at $50 000?",
+    "Four mobile-app localisation strings hard-code '$50,000'. Are these surfaced to end users in a visible error message, or only in internal logs?",
+    "The fraud-scoring model has a feature 'transfer_amount_vs_tier_limit_ratio'. Raising the limit will change the distribution of that feature for Premium customers — has the model been retrained or validated?"
+  ],
+
+  "repoPaths": [
+    "/repos/novabank-core",
+    "/repos/novabank-api-gateway",
+    "/repos/novabank-mobile"
+  ],
+
+  "entryPoints": [
+    {
+      "id": "entry_point:core-transfer-validate",
+      "kind": "entry_point",
+      "label": "POST /internal/transfers/validate",
+      "description": "Core-banking internal REST endpoint that performs limit enforcement, AML checks, and account-balance verification before authorising a transfer. All downstream systems must call this before crediting.",
+      "repoPath": "/repos/novabank-core",
+      "evidence": [
+        { "file": "src/transfers/transferRouter.ts", "line": 34, "snippet": "router.post('/internal/transfers/validate', authMiddleware, transferController.validate);", "tool": "git_grep" }
+      ]
+    },
+    {
+      "id": "entry_point:gateway-transfer-initiate",
+      "kind": "entry_point",
+      "label": "POST /api/v2/transfers",
+      "description": "Public-facing API Gateway endpoint consumed by the mobile app and third-party integrators. Delegates limit checks to the core service but also enforces a gateway-level rate limit and tier validation.",
+      "repoPath": "/repos/novabank-api-gateway",
+      "evidence": [
+        { "file": "src/routes/transfers.ts", "line": 12, "snippet": "router.post('/api/v2/transfers', tierGuard, rateLimit, transferProxy.initiate);", "tool": "git_grep" }
+      ]
+    },
+    {
+      "id": "entry_point:mobile-transfer-screen",
+      "kind": "entry_point",
+      "label": "TransferScreen — React Native",
+      "description": "Mobile entry point where users compose and submit a transfer. Contains client-side validation that rejects inputs above the displayed limit before making a network call.",
+      "repoPath": "/repos/novabank-mobile",
+      "evidence": [
+        { "file": "src/screens/TransferScreen.tsx", "line": 88, "snippet": "if (amount > TRANSFER_LIMITS[tier]) { setError(t('transfer.limitExceeded')); return; }", "tool": "git_grep" }
+      ]
+    }
+  ],
+
+  "filesToChange": {
+    "/repos/novabank-core": [
+      "src/transfers/limitPolicy.ts",
+      "src/transfers/transferController.ts",
+      "src/compliance/auditSchema.ts",
+      "config/tiers.json"
+    ],
+    "/repos/novabank-api-gateway": [
+      "src/middleware/tierGuard.ts",
+      "src/config/limits.ts"
+    ],
+    "/repos/novabank-mobile": [
+      "src/constants/transferLimits.ts",
+      "src/screens/TransferScreen.tsx",
+      "src/i18n/en.json"
+    ]
+  },
+
+  "filesToCheck": {
+    "/repos/novabank-core": [
+      "src/compliance/amlRules.ts",
+      "src/reporting/largeTransferAlert.ts",
+      "src/transfers/batchProcessor.ts",
+      "tests/transfers/limitPolicy.test.ts"
+    ],
+    "/repos/novabank-api-gateway": [
+      "src/middleware/rateLimiter.ts",
+      "tests/middleware/tierGuard.test.ts"
+    ],
+    "/repos/novabank-mobile": [
+      "src/i18n/fr.json",
+      "src/i18n/es.json",
+      "src/i18n/de.json",
+      "src/components/TransferAmountInput.tsx"
+    ]
+  },
+
+  "filesNotAffected": {
+    "/repos/novabank-core": [
+      "src/accounts/accountController.ts",
+      "src/auth/jwtMiddleware.ts",
+      "src/notifications/pushService.ts"
+    ],
+    "/repos/novabank-api-gateway": [
+      "src/routes/accounts.ts",
+      "src/routes/auth.ts"
+    ],
+    "/repos/novabank-mobile": [
+      "src/screens/DashboardScreen.tsx",
+      "src/screens/LoginScreen.tsx"
+    ]
+  },
+
+  "items": [
+    {
+      "id": "business_rule:premium-transfer-limit",
+      "kind": "business_rule",
+      "label": "Premium daily outbound transfer ceiling",
+      "description": "Hard-coded constant PREMIUM_DAILY_LIMIT = 50000 used as the authoritative cap inside the core-banking limit-policy engine. Changing this constant is the primary mechanical change required by the ticket.",
+      "repoPath": "/repos/novabank-core",
+      "evaluationOrder": 1,
+      "evidence": [
+        { "file": "src/transfers/limitPolicy.ts", "line": 7, "snippet": "export const PREMIUM_DAILY_LIMIT = 50_000; // USD cents * 100", "tool": "git_grep" },
+        { "file": "src/transfers/limitPolicy.ts", "line": 42, "snippet": "if (tier === 'premium' && amount > PREMIUM_DAILY_LIMIT) throw new LimitExceededError(PREMIUM_DAILY_LIMIT);", "tool": "git_grep" }
+      ]
+    },
+    {
+      "id": "business_rule:standard-transfer-limit",
+      "kind": "business_rule",
+      "label": "Standard daily outbound transfer ceiling",
+      "description": "Standard-tier limit is $10 000. Not changed by this ticket but defined in the same file — confirm no accidental edits.",
+      "repoPath": "/repos/novabank-core",
+      "evaluationOrder": 2,
+      "evidence": [
+        { "file": "src/transfers/limitPolicy.ts", "line": 6, "snippet": "export const STANDARD_DAILY_LIMIT = 10_000;", "tool": "git_grep" }
+      ]
+    },
+    {
+      "id": "business_rule:large-transfer-alert",
+      "kind": "business_rule",
+      "label": "Large-transfer compliance alert threshold",
+      "description": "Fires a compliance event when transfer ≥ $50 000. Currently coincides with the Premium limit, so all limit-ceiling transfers trigger an alert. After the change, transfers between $50 000 and $100 000 will NOT trigger this alert unless the threshold is also updated — likely a compliance gap.",
+      "repoPath": "/repos/novabank-core",
+      "evaluationOrder": 3,
+      "evidence": [
+        { "file": "src/reporting/largeTransferAlert.ts", "line": 19, "snippet": "const LARGE_TRANSFER_THRESHOLD = 50_000;", "tool": "git_grep" },
+        { "file": "src/reporting/largeTransferAlert.ts", "line": 31, "snippet": "if (amount >= LARGE_TRANSFER_THRESHOLD) await complianceQueue.push({ type: 'LARGE_TRANSFER', ...payload });", "tool": "git_grep" }
+      ],
+      "issues": [
+        {
+          "kind": "contradiction",
+          "description": "After raising PREMIUM_DAILY_LIMIT to $100 000, transfers between $50 000–$100 000 by Premium customers will bypass the LARGE_TRANSFER_THRESHOLD alert. This contradicts the stated BSA/AML obligation. Confirm whether LARGE_TRANSFER_THRESHOLD should also increase or remain at $50 000.",
+          "evidence": [
+            { "file": "src/reporting/largeTransferAlert.ts", "line": 19, "snippet": "const LARGE_TRANSFER_THRESHOLD = 50_000;", "tool": "git_grep" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "config:premium-limit-gateway",
+      "kind": "config",
+      "label": "API Gateway tier-limit config",
+      "description": "The gateway duplicates the limit in its own config file as a guard before proxying to core. Must be updated in sync, otherwise the gateway will reject valid Premium transfers before they reach core-banking.",
+      "repoPath": "/repos/novabank-api-gateway",
+      "evidence": [
+        { "file": "src/config/limits.ts", "line": 3, "snippet": "export const TIER_LIMITS: Record<string, number> = { standard: 10_000, premium: 50_000, private: 250_000 };", "tool": "git_grep" }
+      ]
+    },
+    {
+      "id": "config:mobile-transfer-limits-constant",
+      "kind": "config",
+      "label": "Mobile app TRANSFER_LIMITS constant",
+      "description": "Client-side constant in the React Native app used for input validation and UI display. If not updated, users will see a false 'limit exceeded' error for amounts between $50 000–$100 000 despite the server accepting them.",
+      "repoPath": "/repos/novabank-mobile",
+      "evidence": [
+        { "file": "src/constants/transferLimits.ts", "line": 5, "snippet": "export const TRANSFER_LIMITS: Record<string, number> = { standard: 10_000, premium: 50_000 };", "tool": "git_grep" }
+      ]
+    },
+    {
+      "id": "config:mobile-i18n-limit-string",
+      "kind": "config",
+      "label": "Mobile i18n string with hard-coded '$50,000'",
+      "description": "English localisation file contains a user-visible error message with the literal '$50,000'. This will display the wrong limit after the change.",
+      "repoPath": "/repos/novabank-mobile",
+      "evidence": [
+        { "file": "src/i18n/en.json", "line": 47, "snippet": "\"transfer.limitExceeded\": \"Amount exceeds your daily limit of $50,000 for Premium accounts.\"", "tool": "git_grep" }
+      ]
+    },
+    {
+      "id": "technical_dependency:audit-schema-limit-field",
+      "kind": "technical_dependency",
+      "label": "Compliance audit log schema — limit_at_time field",
+      "description": "The audit schema snapshots the effective limit at the time of each transfer. If the schema has a CHECK constraint or enum that validates the stored value, it will reject the new $100 000 value. A schema migration is required.",
+      "repoPath": "/repos/novabank-core",
+      "evidence": [
+        { "file": "src/compliance/auditSchema.ts", "line": 28, "snippet": "limit_at_time: z.union([z.literal(10_000), z.literal(50_000), z.literal(250_000)]),", "tool": "git_grep" }
+      ]
+    },
+    {
+      "id": "cross_repo_link:gateway-calls-core-validate",
+      "kind": "cross_repo_link",
+      "label": "Gateway → Core: POST /internal/transfers/validate",
+      "description": "The API Gateway proxies every transfer initiation to the core-banking validate endpoint. Both sides must agree on the limit semantics. If core raises its limit but the gateway does not, the gateway will block valid requests.",
+      "repoPath": "/repos/novabank-api-gateway",
+      "linkedItemId": "entry_point:core-transfer-validate",
+      "evidence": [
+        { "file": "src/proxy/transferProxy.ts", "line": 21, "snippet": "const res = await fetch(`${CORE_BASE_URL}/internal/transfers/validate`, { method: 'POST', body: JSON.stringify(payload) });", "tool": "git_grep" }
+      ]
+    },
+    {
+      "id": "cross_repo_link:mobile-calls-gateway-initiate",
+      "kind": "cross_repo_link",
+      "label": "Mobile → Gateway: POST /api/v2/transfers",
+      "description": "The React Native app calls the public gateway endpoint to initiate transfers. Client-side limit validation mirrors the server-side cap, so both must be updated together.",
+      "repoPath": "/repos/novabank-mobile",
+      "linkedItemId": "entry_point:gateway-transfer-initiate",
+      "evidence": [
+        { "file": "src/api/transferApi.ts", "line": 14, "snippet": "return apiClient.post('/api/v2/transfers', { amount, recipientId, note });", "tool": "git_grep" }
+      ]
+    },
+    {
+      "id": "test:core-limit-policy-tests",
+      "kind": "test",
+      "label": "Core: limitPolicy unit tests",
+      "description": "Existing test suite covers the $50 000 boundary. Must be updated to cover $100 000 boundary and intermediate values.",
+      "repoPath": "/repos/novabank-core",
+      "evidence": [
+        { "file": "tests/transfers/limitPolicy.test.ts", "line": 44, "snippet": "expect(() => validateLimit('premium', 50_001)).toThrow(LimitExceededError);", "tool": "git_grep" },
+        { "file": "tests/transfers/limitPolicy.test.ts", "line": 47, "snippet": "expect(() => validateLimit('premium', 50_000)).not.toThrow();", "tool": "git_grep" }
+      ]
+    },
+    {
+      "id": "test:gateway-tier-guard-tests",
+      "kind": "test",
+      "label": "Gateway: tierGuard middleware tests",
+      "description": "Tier guard test asserts 422 for amount > 50000 on premium tier. Will break after the config change and must be updated.",
+      "repoPath": "/repos/novabank-api-gateway",
+      "evidence": [
+        { "file": "tests/middleware/tierGuard.test.ts", "line": 31, "snippet": "expect(res.status).toBe(422); // 50001 exceeds premium limit", "tool": "git_grep" }
+      ]
+    }
+  ],
+
+  "simulations": [
+    {
+      "repoPath": "/repos/novabank-core",
+      "edits": [
+        {
+          "file": "src/transfers/limitPolicy.ts",
+          "search": "export const PREMIUM_DAILY_LIMIT = 50_000;",
+          "replace": "export const PREMIUM_DAILY_LIMIT = 100_000;"
+        }
+      ],
+      "testCode": "import { describe, it, expect } from 'vitest';\nimport { validateLimit, LimitExceededError } from '../src/transfers/limitPolicy';\n\ndescribe('Premium transfer limit — post-patch', () => {\n  it('allows $50 000 (previously at ceiling)', () => {\n    expect(() => validateLimit('premium', 50_000)).not.toThrow();\n  });\n  it('allows $99 999 (below new ceiling)', () => {\n    expect(() => validateLimit('premium', 99_999)).not.toThrow();\n  });\n  it('allows exactly $100 000 (new ceiling)', () => {\n    expect(() => validateLimit('premium', 100_000)).not.toThrow();\n  });\n  it('rejects $100 001 (above new ceiling)', () => {\n    expect(() => validateLimit('premium', 100_001)).toThrow(LimitExceededError);\n  });\n  it('standard tier: still rejects $10 001', () => {\n    expect(() => validateLimit('standard', 10_001)).toThrow(LimitExceededError);\n  });\n});",
+      "rows": [
+        { "input": "Premium, $50 000 (previously at ceiling)", "before": "❌ LimitExceededError thrown (old limit was $50 000)", "after": "✅ passes — allowed below new $100 000 ceiling", "passed": true },
+        { "input": "Premium, $99 999", "before": "❌ LimitExceededError thrown", "after": "✅ passes — within new ceiling", "passed": true },
+        { "input": "Premium, $100 000 (new ceiling)", "before": "❌ LimitExceededError thrown", "after": "✅ passes — exactly at new ceiling", "passed": true },
+        { "input": "Premium, $100 001 (over new ceiling)", "before": "❌ LimitExceededError thrown", "after": "❌ LimitExceededError thrown — correctly rejected", "passed": true },
+        { "input": "Standard, $10 001 (standard limit unchanged)", "before": "❌ LimitExceededError thrown", "after": "❌ LimitExceededError thrown — standard limit untouched ✅", "passed": true }
+      ],
+      "rawOutput": "✓ 5 tests passed (23 ms)",
+      "worktreePath": "/tmp/rulescope-sim-a1b2c3d4 (cleaned up)"
+    }
+  ],
+
+  "coverage": [
+    {
+      "repoPath": "/repos/novabank-core",
+      "fileCoverage": {
+        "src/transfers/limitPolicy.ts": 91,
+        "src/transfers/transferController.ts": 74,
+        "src/compliance/auditSchema.ts": 38,
+        "src/reporting/largeTransferAlert.ts": 52
+      },
+      "functionCoverage": {
+        "src/transfers/limitPolicy.ts:validateLimit": 100,
+        "src/transfers/limitPolicy.ts:computeDailyUsage": 88,
+        "src/transfers/transferController.ts:validate": 79,
+        "src/transfers/transferController.ts:initiate": 68,
+        "src/compliance/auditSchema.ts:buildAuditRecord": 38,
+        "src/reporting/largeTransferAlert.ts:maybeAlert": 52
+      },
+      "uncoveredFiles": [
+        "src/compliance/auditSchema.ts"
+      ]
+    },
+    {
+      "repoPath": "/repos/novabank-api-gateway",
+      "fileCoverage": {
+        "src/middleware/tierGuard.ts": 83,
+        "src/config/limits.ts": 100,
+        "src/proxy/transferProxy.ts": 61
+      },
+      "functionCoverage": {
+        "src/middleware/tierGuard.ts:tierGuard": 83,
+        "src/proxy/transferProxy.ts:initiate": 61
+      },
+      "uncoveredFiles": []
+    },
+    {
+      "repoPath": "/repos/novabank-mobile",
+      "fileCoverage": {
+        "src/constants/transferLimits.ts": 100,
+        "src/screens/TransferScreen.tsx": 45,
+        "src/i18n/en.json": 0
+      },
+      "functionCoverage": {
+        "src/screens/TransferScreen.tsx:handleSubmit": 45,
+        "src/screens/TransferScreen.tsx:validateAmount": 90
+      },
+      "uncoveredFiles": [
+        "src/i18n/en.json"
+      ]
+    }
+  ],
+
+  "riskLevel": "high",
+  "effortEstimate": "9 files to change across 3 repositories, ~80 lines net. Schema migration required. Estimated 2–3 engineer-days including regression testing.",
+  "riskRationale": "Rated HIGH: (1) the change crosses three production repositories with independent deployment pipelines; (2) a compliance audit-schema migration is required, which carries database rollback risk; (3) the fraud-scoring ML model has a ratio feature keyed to the old limit, potentially degrading model accuracy until retrained; (4) four i18n strings in three languages display the old limit; (5) the large-transfer compliance alert gap ($50k–$100k) is a potential regulatory exposure if not resolved before deployment.",
+
+  "changePlan": [
+    {
+      "order": 1,
+      "action": "Update PREMIUM_DAILY_LIMIT in core-banking limit policy",
+      "rationale": "This is the authoritative source of the limit. All other changes must be consistent with this value.",
+      "targetFiles": ["src/transfers/limitPolicy.ts", "config/tiers.json"],
+      "repoPath": "/repos/novabank-core"
+    },
+    {
+      "order": 2,
+      "action": "Add 100_000 to the auditSchema Zod union and write a DB migration script",
+      "rationale": "The compliance audit log has a CHECK constraint on limit_at_time. Without this migration, every new-limit transfer will fail the schema validation and be rejected at audit-log write time.",
+      "targetFiles": ["src/compliance/auditSchema.ts"],
+      "repoPath": "/repos/novabank-core"
+    },
+    {
+      "order": 3,
+      "action": "Decide and document the large-transfer alert threshold stance with Compliance",
+      "rationale": "The LARGE_TRANSFER_THRESHOLD at $50 000 creates a regulatory gap for $50k–$100k Premium transfers. Either raise the threshold (requires Compliance sign-off) or add a separate Premium-tier alert rule. Do not proceed to production without written confirmation.",
+      "targetFiles": ["src/reporting/largeTransferAlert.ts"],
+      "repoPath": "/repos/novabank-core"
+    },
+    {
+      "order": 4,
+      "action": "Update TIER_LIMITS in the API Gateway config and redeploy the gateway",
+      "rationale": "The gateway independently enforces limits. If not updated, it will reject valid Premium transfers before they reach core-banking, causing customer-visible 422 errors.",
+      "targetFiles": ["src/config/limits.ts", "src/middleware/tierGuard.ts"],
+      "repoPath": "/repos/novabank-api-gateway"
+    },
+    {
+      "order": 5,
+      "action": "Update TRANSFER_LIMITS constant and i18n strings in the mobile app",
+      "rationale": "Client-side validation mirrors the server cap. Stale constants produce false 'limit exceeded' UI errors. Localisation strings in en.json, fr.json, es.json, de.json contain the literal '$50,000' and must be updated.",
+      "targetFiles": ["src/constants/transferLimits.ts", "src/i18n/en.json", "src/i18n/fr.json", "src/i18n/es.json", "src/i18n/de.json"],
+      "repoPath": "/repos/novabank-mobile"
+    },
+    {
+      "order": 6,
+      "action": "Update and extend unit tests across all three repositories",
+      "rationale": "Existing tests assert the $50 000 boundary and will fail after the config change. New tests must cover the $100 000 boundary, intermediate values, and the unchanged standard-tier limit.",
+      "targetFiles": ["tests/transfers/limitPolicy.test.ts", "tests/middleware/tierGuard.test.ts"],
+      "repoPath": "/repos/novabank-core"
+    },
+    {
+      "order": 7,
+      "action": "Co-ordinate with the Data Science team to retrain or validate the fraud-scoring model",
+      "rationale": "The 'transfer_amount_vs_tier_limit_ratio' feature distribution shifts for Premium customers. Deploying without retraining may silently degrade fraud detection accuracy until the next scheduled model refresh.",
+      "targetFiles": [],
+      "repoPath": "/repos/novabank-core"
+    },
+    {
+      "order": 8,
+      "action": "Deploy in order: core-banking → API Gateway → mobile app (staged rollout)",
+      "rationale": "Deploying core first ensures the backend is ready before the gateway starts routing the new limit. Mobile app must be deployed last; a brief window where core and gateway accept the new limit but the mobile app still blocks it client-side is acceptable and safe.",
+      "targetFiles": [],
+      "repoPath": "/repos/novabank-core"
+    }
+  ]
+}
