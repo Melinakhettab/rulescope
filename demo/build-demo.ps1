@@ -56,7 +56,8 @@ Set-Content "package.json" @'
     "test": "vitest run"
   },
   "devDependencies": {
-    "vitest": "^1.6.0"
+    "@vitest/coverage-v8": "^1.6.1",
+    "vitest": "^1.6.1"
   }
 }
 '@
@@ -735,7 +736,8 @@ Set-Content "package.json" @'
     "test": "vitest run"
   },
   "devDependencies": {
-    "vitest": "^1.6.0"
+    "@vitest/coverage-v8": "^1.6.1",
+    "vitest": "^1.6.1"
   }
 }
 '@
