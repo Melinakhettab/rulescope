@@ -1,0 +1,5 @@
+[
+  { "ticketId": "TECH-219", "title": "Migrate novabank-api database from SQLite to PostgreSQL", "riskLevel": "high" },
+  { "ticketId": "UI-77",    "title": "Change the Transfer button color to blue (#1E40AF)",        "riskLevel": "low"  },
+  { "ticketId": "sample",   "title": "Increase Premium transfer limit from $50 000 to $100 000",  "riskLevel": "high" }
+]

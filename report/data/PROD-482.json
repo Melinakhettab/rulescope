@@ -1,0 +1,531 @@
+{
+  "$schema": "https://rulescope/impact-report/v1",
+  "ticketId": "PROD-482",
+  "title": "Raise daily transfer limit for Premium customers to €5,000",
+  "createdAt": "2026-09-26T18:34:28.277+02:00",
+  "requestSummary": "Premium customers can now transfer up to €5,000 per day (instead of €1,000). Standard customers stay at €1,000. The daily transfer limit is currently a single hardcoded constant with no tier awareness across two repositories.",
+  "openQuestions": [
+    "BLOCKER: Will the fraud threshold (€2,000, FR-2024-17) be raised or made tier-aware for Premium customers? Without this, any single transfer >€2,000 is permanently PENDING_REVIEW regardless of the new limit. [Owner: risk/fraud team — evidence: novabank-api/src/fraud/rules.ts:14]",
+    "Should GET /api/limits remain unauthenticated or accept a customer/session token to return the correct tier limit? [Owner: API/security team]",
+    "Is there a per-transaction cap separate from the daily cap? None found in either repository — confirm with product.",
+    "Are there unknown external consumers of /api/limits beyond novabank-mobile? The cross-repo scan found no static links — verify with other teams."
+  ],
+  "entryPoints": [
+    {
+      "id": "entry_point:post-api-transfers",
+      "kind": "entry_point",
+      "label": "POST /api/transfers",
+      "description": "HTTP route that executes a money transfer. Calls executeTransfer() which enforces the daily limit. The limit check runs after the fraud gate.",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api",
+      "evidence": [
+        {
+          "file": "src/api/routes.ts",
+          "line": 43,
+          "snippet": "addRoute(\"POST\", \"/api/transfers\", async (req) => {",
+          "tool": "git_grep"
+        }
+      ]
+    },
+    {
+      "id": "entry_point:get-api-limits",
+      "kind": "entry_point",
+      "label": "GET /api/limits",
+      "description": "HTTP route returning the daily transfer limit. Currently returns a static { dailyLimit: 1000 } regardless of customer tier. Called by novabank-mobile to display the UI label.",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api",
+      "evidence": [
+        {
+          "file": "src/api/routes.ts",
+          "line": 55,
+          "snippet": "addRoute(\"GET\", \"/api/limits\", async (_req) => {",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/api/routes.ts",
+          "line": 56,
+          "snippet": "return { status: 200, body: { dailyLimit: DAILY_LIMIT } };",
+          "tool": "git_grep"
+        }
+      ]
+    },
+    {
+      "id": "entry_point:mobile-transfer-screen",
+      "kind": "entry_point",
+      "label": "TransferScreen (mobile)",
+      "description": "Mobile screen that validates transfer amount client-side against CLIENT_DAILY_LIMIT (hardcoded 1000) and displays a hardcoded label 'Daily limit: €1,000'.",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile",
+      "evidence": [
+        {
+          "file": "src/screens/TransferScreen.ts",
+          "line": 10,
+          "snippet": "export async function submitTransfer(payload: TransferPayload): Promise<TransferScreenState>",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/screens/TransferScreen.ts",
+          "line": 12,
+          "snippet": "const label = \"Daily limit: €1,000\";",
+          "tool": "git_grep"
+        }
+      ]
+    }
+  ],
+  "repoPaths": [
+    "C:/Users/lisak/rulescope/demo-workspace/novabank-api",
+    "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile"
+  ],
+  "filesToChange": {
+    "C:/Users/lisak/rulescope/demo-workspace/novabank-api": [
+      "src/transfers/limits.ts",
+      "src/transfers/transferService.ts",
+      "src/api/routes.ts",
+      "src/notifications/templates.ts",
+      "tests/limits.test.ts",
+      "tests/transferService.test.ts",
+      "tests/routes.test.ts"
+    ],
+    "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile": [
+      "src/transfers/validateTransfer.ts",
+      "src/screens/TransferScreen.ts",
+      "src/services/api.ts",
+      "tests/TransferScreen.test.ts",
+      "tests/api.test.ts"
+    ]
+  },
+  "filesToCheck": {
+    "C:/Users/lisak/rulescope/demo-workspace/novabank-api": [
+      "src/fraud/rules.ts",
+      "src/compliance/amlReport.ts"
+    ],
+    "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile": []
+  },
+  "filesNotAffected": {
+    "C:/Users/lisak/rulescope/demo-workspace/novabank-api": [
+      "src/cards/cardLimits.ts",
+      "src/db/customersRepo.ts",
+      "src/db/transfersRepo.ts"
+    ],
+    "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile": [
+      "src/config.ts"
+    ]
+  },
+  "items": [
+    {
+      "id": "business_rule:daily-limit-constant",
+      "kind": "business_rule",
+      "label": "DAILY_LIMIT = 1000 (single constant, no tier awareness)",
+      "description": "The entire transfer limit system is one constant. Changing it to 5000 would raise the limit for ALL customers, not just Premium. Must be refactored into per-tier limits.",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api",
+      "evaluationOrder": 2,
+      "evidence": [
+        {
+          "file": "src/transfers/limits.ts",
+          "line": 1,
+          "snippet": "// Transfer limits — applies to all customers regardless of tier",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/transfers/limits.ts",
+          "line": 4,
+          "snippet": "export const DAILY_LIMIT = 1000; // EUR",
+          "tool": "git_blame"
+        }
+      ]
+    },
+    {
+      "id": "business_rule:fraud-gate",
+      "kind": "business_rule",
+      "label": "Fraud gate blocks all transfers >€2,000 (FR-2024-17)",
+      "description": "checkFraud() runs as step 1 in executeTransfer, BEFORE the daily limit check (step 2). Any Premium transfer of €2,001–€5,000 will be intercepted here and put in PENDING_REVIEW, making the new limit unreachable without a fraud rule update.",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api",
+      "evaluationOrder": 1,
+      "evidence": [
+        {
+          "file": "src/fraud/rules.ts",
+          "line": 11,
+          "snippet": "* Block transfers above 2000 pending manual review - fraud incident FR-2024-17",
+          "tool": "git_blame"
+        },
+        {
+          "file": "src/fraud/rules.ts",
+          "line": 14,
+          "snippet": "if (amount > 2000) {",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/transfers/transferService.ts",
+          "line": 24,
+          "snippet": "// 1. Fraud check — takes priority over all other checks",
+          "tool": "git_grep"
+        }
+      ],
+      "issues": [
+        {
+          "kind": "contradiction",
+          "description": "The fraud threshold (€2,000) contradicts the proposed Premium limit (€5,000). Transfers of €2,001–€5,000 will be PENDING_REVIEW, not COMPLETED, for all customers including Premium. Requires risk/fraud team sign-off before PROD-482 can be fully effective.",
+          "evidence": [
+            {
+              "file": "src/fraud/rules.ts",
+              "line": 14,
+              "snippet": "if (amount > 2000) { return { decision: 'PENDING_REVIEW' ... }",
+              "tool": "git_blame"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "business_rule:aml-threshold",
+      "kind": "business_rule",
+      "label": "AML reporting threshold €3,000 (COMP-7)",
+      "description": "Regulatory requirement: all completed transfers ≥€3,000 appear in the nightly AML report. Raising the Premium limit to €5,000 will increase the volume of AML-reported transfers.",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api",
+      "evaluationOrder": null,
+      "evidence": [
+        {
+          "file": "src/compliance/amlReport.ts",
+          "line": 1,
+          "snippet": "// AML nightly report - regulatory requirement COMP-7",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/compliance/amlReport.ts",
+          "line": 6,
+          "snippet": "export const AML_REPORTING_THRESHOLD = 3000; // EUR",
+          "tool": "git_grep"
+        }
+      ]
+    },
+    {
+      "id": "business_rule:client-daily-limit",
+      "kind": "business_rule",
+      "label": "CLIENT_DAILY_LIMIT = 1000 (mobile client-side guard)",
+      "description": "Duplicate hardcoded limit in the mobile app. Added to save API round-trips. If not updated, Premium customers will be blocked on the mobile side even after the backend is fixed.",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile",
+      "evaluationOrder": null,
+      "evidence": [
+        {
+          "file": "src/transfers/validateTransfer.ts",
+          "line": 1,
+          "snippet": "// Client-side limit check to save API calls",
+          "tool": "git_blame"
+        },
+        {
+          "file": "src/transfers/validateTransfer.ts",
+          "line": 2,
+          "snippet": "export const CLIENT_DAILY_LIMIT = 1000; // EUR",
+          "tool": "git_blame"
+        }
+      ],
+      "issues": [
+        {
+          "kind": "duplicate",
+          "description": "Same €1,000 limit encoded independently from the backend. Both must be updated atomically or the mobile guard must become API-driven.",
+          "evidence": [
+            {
+              "file": "src/transfers/validateTransfer.ts",
+              "line": 2,
+              "snippet": "export const CLIENT_DAILY_LIMIT = 1000;",
+              "tool": "git_grep"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "config:notification-template",
+      "kind": "config",
+      "label": "Hardcoded limit string in notification template",
+      "description": "limitInfo() returns a static string '€1,000'. It has 0% test coverage and will silently send wrong limit information after the change.",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api",
+      "evidence": [
+        {
+          "file": "src/notifications/templates.ts",
+          "line": 5,
+          "snippet": "limitInfo: () => \"Your daily transfer limit is €1,000\"",
+          "tool": "git_blame"
+        }
+      ]
+    },
+    {
+      "id": "config:ui-label",
+      "kind": "config",
+      "label": "Hardcoded UI label 'Daily limit: €1,000' in TransferScreen",
+      "description": "The label shown to the user is a compile-time string constant. Premium users will see the wrong limit until this is made dynamic.",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile",
+      "evidence": [
+        {
+          "file": "src/screens/TransferScreen.ts",
+          "line": 12,
+          "snippet": "const label = \"Daily limit: €1,000\";",
+          "tool": "git_blame"
+        }
+      ]
+    },
+    {
+      "id": "technical_dependency:customer-tier-available",
+      "kind": "technical_dependency",
+      "label": "CustomerTier already in DB schema and getCustomer()",
+      "description": "CustomerRow.tier: 'STANDARD'|'PREMIUM' already exists and getCustomer() is already imported in transferService.ts. No DB migration needed — the tier data is already available at the enforcement point.",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api",
+      "evidence": [
+        {
+          "file": "src/db/customersRepo.ts",
+          "line": 3,
+          "snippet": "export type CustomerTier = \"STANDARD\" | \"PREMIUM\";",
+          "tool": "git_grep"
+        },
+        {
+          "file": "src/transfers/transferService.ts",
+          "line": 5,
+          "snippet": "import { getCustomer } from \"../db/customersRepo.js\";",
+          "tool": "git_grep"
+        }
+      ]
+    },
+    {
+      "id": "test:limits-constant",
+      "kind": "test",
+      "label": "tests/limits.test.ts — 'DAILY_LIMIT is 1000'",
+      "description": "Asserts the constant value is 1000. Will break when the constant is refactored.",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api",
+      "evidence": [
+        {
+          "file": "tests/limits.test.ts",
+          "line": 5,
+          "snippet": "it(\"is 1000\", () => { expect(DAILY_LIMIT).toBe(1000); });",
+          "tool": "git_grep"
+        }
+      ]
+    },
+    {
+      "id": "test:routes-limit",
+      "kind": "test",
+      "label": "tests/routes.test.ts — 'returns dailyLimit 1000'",
+      "description": "Asserts GET /api/limits returns 1000. Breaks with naive one-liner (confirmed by simulation: 3 tests fail).",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api",
+      "evidence": [
+        {
+          "file": "tests/routes.test.ts",
+          "line": 31,
+          "snippet": "it(\"returns dailyLimit 1000\", async () => {",
+          "tool": "git_grep"
+        },
+        {
+          "file": "tests/routes.test.ts",
+          "line": 34,
+          "snippet": "expect(...dailyLimit).toBe(1000);",
+          "tool": "vitest"
+        }
+      ]
+    },
+    {
+      "id": "test:transfer-service-rejection",
+      "kind": "test",
+      "label": "tests/transferService.test.ts — 'rejects when daily limit is exceeded'",
+      "description": "Sends 800+300=1100 total, expects REJECTED. With DAILY_LIMIT=5000 this passes, breaking the test (confirmed by simulation).",
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api",
+      "evidence": [
+        {
+          "file": "tests/transferService.test.ts",
+          "line": 61,
+          "snippet": "it(\"rejects when daily limit is exceeded\", async () => {",
+          "tool": "git_grep"
+        }
+      ]
+    }
+  ],
+  "simulations": [
+    {
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api",
+      "edits": [
+        {
+          "file": "src/transfers/limits.ts",
+          "search": "export const DAILY_LIMIT = 1000; // EUR",
+          "replace": "export const DAILY_LIMIT = 5000; // EUR"
+        }
+      ],
+      "testCode": "existing test suite (vitest run)",
+      "rows": [
+        {
+          "input": "limits.test.ts — DAILY_LIMIT is 1000",
+          "before": "✅ PASS",
+          "after": "❌ FAIL (got 5000)",
+          "passed": false
+        },
+        {
+          "input": "routes.test.ts — GET /api/limits returns dailyLimit 1000",
+          "before": "✅ PASS",
+          "after": "❌ FAIL (got 5000)",
+          "passed": false
+        },
+        {
+          "input": "transferService.test.ts — rejects when daily limit is exceeded (800+300)",
+          "before": "✅ PASS",
+          "after": "❌ FAIL (COMPLETED instead of REJECTED — all customers now get 5000)",
+          "passed": false
+        },
+        {
+          "input": "fraud.test.ts — all fraud tests",
+          "before": "✅ PASS",
+          "after": "✅ PASS (unaffected)",
+          "passed": true
+        },
+        {
+          "input": "cards.test.ts — all card tests",
+          "before": "✅ PASS",
+          "after": "✅ PASS (unaffected)",
+          "passed": true
+        },
+        {
+          "input": "retention.test.ts — all retention tests",
+          "before": "✅ PASS",
+          "after": "✅ PASS (unaffected)",
+          "passed": true
+        }
+      ],
+      "rawOutput": "3 failed | 14 passed (17 total). Naive edit raises limit for ALL customers and breaks 3 tests. Fraud gate still blocks amounts >2000.",
+      "worktreePath": "temporary worktree (cleaned up)"
+    }
+  ],
+  "coverage": [
+    {
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api",
+      "fileCoverage": {
+        "src/transfers/limits.ts": 100,
+        "src/transfers/transferService.ts": 100,
+        "src/api/routes.ts": 97,
+        "src/fraud/rules.ts": 100,
+        "src/notifications/templates.ts": 0,
+        "src/compliance/amlReport.ts": 0
+      },
+      "functionCoverage": {
+        "src/transfers/limits.ts:getParisDayString": 100,
+        "src/transfers/transferService.ts:executeTransfer": 100,
+        "src/api/routes.ts:addRoute": 100,
+        "src/api/routes.ts:router": 100,
+        "src/fraud/rules.ts:checkFraud": 100,
+        "src/notifications/templates.ts:(empty-report)": 0,
+        "src/compliance/amlReport.ts:(empty-report)": 0
+      },
+      "uncoveredFiles": [
+        "src/notifications/templates.ts",
+        "src/compliance/amlReport.ts"
+      ]
+    },
+    {
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile",
+      "fileCoverage": {
+        "src/transfers/validateTransfer.ts": 88,
+        "src/screens/TransferScreen.ts": 100,
+        "src/services/api.ts": 100
+      },
+      "functionCoverage": {
+        "src/transfers/validateTransfer.ts:validateTransfer": 100,
+        "src/screens/TransferScreen.ts:submitTransfer": 100,
+        "src/services/api.ts:postTransfer": 100,
+        "src/services/api.ts:getLimits": 100,
+        "src/services/api.ts:getAccount": 100
+      },
+      "uncoveredFiles": []
+    }
+  ],
+  "riskLevel": "high",
+  "effortEstimate": "7 files to change across 2 repos, ~60–80 lines. Plus fraud team coordination (blocking).",
+  "riskRationale": "Two independent hardcoded constants must be updated atomically. A blocking fraud rule contradiction means Premium customers cannot complete single transfers >€2,000 without a separate fraud rule change. Two files with zero coverage (templates.ts, amlReport.ts) will not be caught by existing tests. A naive one-liner breaks 3 tests and makes the change non-tier-aware.",
+  "changePlan": [
+    {
+      "order": 1,
+      "action": "Coordinate with risk/fraud team to decide how the €2,000 fraud threshold (FR-2024-17) applies to Premium customers.",
+      "rationale": "The fraud gate runs before the limit check and blocks all transfers >€2,000. Without this decision, the new €5,000 Premium limit is effectively unreachable for single transactions.",
+      "targetFiles": [
+        "src/fraud/rules.ts"
+      ],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api"
+    },
+    {
+      "order": 2,
+      "action": "Notify compliance team that AML COMP-7 report volume will increase because more Premium transfers will now be ≥€3,000 and appear in the nightly report.",
+      "rationale": "Regulatory requirement COMP-7 — compliance team must sign off before go-live.",
+      "targetFiles": [
+        "src/compliance/amlReport.ts"
+      ],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api"
+    },
+    {
+      "order": 3,
+      "action": "In src/transfers/limits.ts: replace DAILY_LIMIT with STANDARD_DAILY_LIMIT=1000 and PREMIUM_DAILY_LIMIT=5000 (or a getLimitForTier(tier) function).",
+      "rationale": "Single constant must become tier-aware. All callers must be updated in the same PR.",
+      "targetFiles": [
+        "src/transfers/limits.ts"
+      ],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api"
+    },
+    {
+      "order": 4,
+      "action": "In src/transfers/transferService.ts: move the getCustomer() call before step 2 (line 33) and apply tier-appropriate limit. Avoid a second DB call — the customer record is already needed.",
+      "rationale": "executeTransfer already has customerId and imports getCustomer. CustomerTier is already in the DB.",
+      "targetFiles": [
+        "src/transfers/transferService.ts"
+      ],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api"
+    },
+    {
+      "order": 5,
+      "action": "In src/api/routes.ts: update GET /api/limits to accept an optional customerId or tier query parameter and return the tier-appropriate dailyLimit.",
+      "rationale": "Mobile app calls this endpoint to display the limit label and pass it to client-side validation.",
+      "targetFiles": [
+        "src/api/routes.ts"
+      ],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api"
+    },
+    {
+      "order": 6,
+      "action": "In src/notifications/templates.ts: make limitInfo() accept the limit amount as a parameter.",
+      "rationale": "Current hardcoded string '€1,000' has 0% test coverage and will silently send wrong limit info to Premium customers.",
+      "targetFiles": [
+        "src/notifications/templates.ts"
+      ],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api"
+    },
+    {
+      "order": 7,
+      "action": "In novabank-mobile src/transfers/validateTransfer.ts: accept the limit as a parameter instead of using CLIENT_DAILY_LIMIT constant.",
+      "rationale": "Duplicate hardcoded constant was intentional to save API calls, but must now be API-driven or parameterised.",
+      "targetFiles": [
+        "src/transfers/validateTransfer.ts"
+      ],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile"
+    },
+    {
+      "order": 8,
+      "action": "In novabank-mobile src/screens/TransferScreen.ts: call getLimits() on mount, store the tier-aware limit, render it in the label, pass it to validateTransfer().",
+      "rationale": "Hardcoded label '€1,000' will show wrong information to Premium customers.",
+      "targetFiles": [
+        "src/screens/TransferScreen.ts"
+      ],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile"
+    },
+    {
+      "order": 9,
+      "action": "In novabank-mobile src/services/api.ts: update getLimits() return type to match the updated API response shape.",
+      "rationale": "TypeScript type safety — return type will change if backend adds per-tier fields.",
+      "targetFiles": [
+        "src/services/api.ts"
+      ],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-mobile"
+    },
+    {
+      "order": 10,
+      "action": "Update all affected tests in both repos. Add PREMIUM-tier test cases. Add coverage for notifications/templates.ts and compliance/amlReport.ts.",
+      "rationale": "3 existing tests break with the naive edit. notifications/templates.ts and amlReport.ts have 0% coverage and will not catch regressions.",
+      "targetFiles": [
+        "tests/limits.test.ts",
+        "tests/transferService.test.ts",
+        "tests/routes.test.ts",
+        "tests/TransferScreen.test.ts",
+        "tests/api.test.ts"
+      ],
+      "repoPath": "C:/Users/lisak/rulescope/demo-workspace/novabank-api"
+    }
+  ]
+}

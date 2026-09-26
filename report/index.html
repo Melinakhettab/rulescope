@@ -202,12 +202,14 @@ body {
   grid-template-columns: 160px 1fr;
   padding: 16px 0;
   border-bottom: 1px solid var(--line);
-  align-items: baseline;
+  align-items: start;
+  min-width: 0;
 }
 .glance-row:last-child { border-bottom: none; }
 .glance-key {
   font-size: 13.5px;
   color: var(--muted);
+  padding-top: 6px; /* visual alignment against baseline of first child */
 }
 .glance-val {
   display: flex;
@@ -229,12 +231,13 @@ body {
 .glance-big.low      { color: var(--low); }
 .glance-blocked {
   font-size: 15px;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 .glance-blocked .blocking-label {
   color: var(--critical);
   font-weight: 600;
 }
-
 /* ── SECTION 2: VERDICT ──────────────────────────────────── */
 #sec-verdict {
   display: flex;
@@ -682,7 +685,11 @@ body {
     </svg>
     RuleScope
   </span>
-  <nav id="report-nav" aria-label="Impact briefs"></nav>
+  <div id="search-wrap" role="search">
+    <input id="search-input" type="search" autocomplete="off" spellcheck="false"
+           placeholder="Search a ticket ID (e.g. TECH-219)" aria-label="Search ticket ID" aria-autocomplete="list" aria-controls="search-dropdown"/>
+    <div id="search-dropdown" role="listbox" aria-label="Matching reports"></div>
+  </div>
 </header>
 
 <!-- STATE OVERLAY (loading / error) -->
@@ -1277,10 +1284,11 @@ function buildGlance(data) {
   });
   const sevParts = Object.entries(counts).filter(([,v])=>v>0).map(([k,v])=>`${v} ${k}`);
 
-  // effort
+  // effort — big serif for text before the first comma, rest in normal body
   const effort = data.effortEstimate || '';
-  // extract first short phrase
-  const effortShort = effort.split('.')[0] || effort;
+  const commaIdx = effort.indexOf(',');
+  const effortHead = commaIdx !== -1 ? effort.slice(0, commaIdx) : effort;
+  const effortTail = commaIdx !== -1 ? effort.slice(commaIdx) : '';
 
   // files counts
   let changeCount = 0, checkCount = 0;
@@ -1309,8 +1317,8 @@ function buildGlance(data) {
     </div>
     <div class="glance-row">
       <span class="glance-key">Effort</span>
-      <span class="glance-val">
-        <span class="glance-big">${esc(effortShort.length > 40 ? effortShort.slice(0,38)+'…' : effortShort)}</span>
+      <span class="glance-val" style="flex-direction:column;align-items:flex-start;gap:2px">
+        <span class="glance-big">${esc(effortHead)}</span>${effortTail ? `<span style="font-size:14px;color:var(--muted);line-height:1.5">${esc(effortTail.replace(/^,\s*/,''))}</span>` : ''}
       </span>
     </div>
     <div class="glance-row">
@@ -1324,10 +1332,9 @@ function buildGlance(data) {
     </div>`;
 
   if (blockingQ) {
-    const short = blockingQ.length > 90 ? blockingQ.slice(0,88)+'…' : blockingQ;
     html += `<div class="glance-row">
       <span class="glance-key">Blocked by</span>
-      <span class="glance-blocked"><span class="blocking-label">Compliance sign-off</span> — ${esc(short)}</span>
+      <span class="glance-blocked"><span class="blocking-label">Compliance sign-off</span> — ${esc(blockingQ)}</span>
     </div>`;
   }
 
@@ -1419,24 +1426,134 @@ function renderReport(data) {
   document.getElementById('main').style.display = '';
 }
 
-/* ── nav bar ─────────────────────────────────────────────── */
+/* ── search widget ───────────────────────────────────────── */
 let currentTicketId = null;
+let allReports = [];    // [{ticketId, title, riskLevel}]
+let ddFocusIdx  = -1;
 
-function buildNav(reports, activeId) {
-  const nav = document.getElementById('report-nav');
-  nav.innerHTML = '';
-  reports.forEach(r => {
-    const btn = document.createElement('button');
-    btn.className = 'nav-item' + (r.ticketId === activeId ? ' active' : '');
-    const dot = document.createElement('span');
-    dot.className = 'nav-dot ' + riskColor(r.riskLevel);
-    btn.appendChild(dot);
-    btn.appendChild(document.createTextNode(r.ticketId));
-    btn.addEventListener('click', () => {
-      history.replaceState(null, '', '?report=' + encodeURIComponent(r.ticketId));
-      loadReport(r.ticketId);
+function openReport(ticketId) {
+  history.pushState(null, '', '?report=' + encodeURIComponent(ticketId));
+  document.getElementById('search-input').value = ticketId;
+  closeDropdown();
+  loadReport(ticketId);
+}
+
+function closeDropdown() {
+  const dd = document.getElementById('search-dropdown');
+  dd.classList.remove('open');
+  dd.innerHTML = '';
+  ddFocusIdx = -1;
+}
+
+function renderDropdown(matches, query) {
+  const dd = document.getElementById('search-dropdown');
+  if (!query) { closeDropdown(); return; }
+  dd.innerHTML = '';
+  ddFocusIdx = -1;
+  if (!matches.length) {
+    const none = document.createElement('div');
+    none.className = 'dd-none';
+    none.textContent = `No report for "${query}"`;
+    dd.appendChild(none);
+  } else {
+    matches.forEach((r, idx) => {
+      const row = document.createElement('div');
+      row.className = 'dd-row';
+      row.setAttribute('role', 'option');
+      row.setAttribute('aria-selected', 'false');
+      row.dataset.idx = idx;
+      row.innerHTML = `<span class="dd-dot ${riskColor(r.riskLevel)}"></span>` +
+                      `<span class="dd-id">${esc(r.ticketId)}</span>` +
+                      `<span class="dd-title">${esc(r.title)}</span>`;
+      row.addEventListener('mousedown', e => { e.preventDefault(); openReport(r.ticketId); });
+      dd.appendChild(row);
     });
-    nav.appendChild(btn);
+  }
+  dd.classList.add('open');
+}
+
+function setDdFocus(idx) {
+  const dd = document.getElementById('search-dropdown');
+  const rows = dd.querySelectorAll('.dd-row');
+  rows.forEach((r, i) => r.classList.toggle('focused', i === idx));
+  ddFocusIdx = idx;
+}
+
+function initSearch() {
+  const input = document.getElementById('search-input');
+  const dd    = document.getElementById('search-dropdown');
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim();
+    if (!q) { closeDropdown(); return; }
+    const ql = q.toLowerCase();
+    const matches = allReports.filter(r =>
+      r.ticketId.toLowerCase().includes(ql) ||
+      (r.title || '').toLowerCase().includes(ql)
+    );
+    renderDropdown(matches, q);
+  });
+
+  input.addEventListener('keydown', e => {
+    const dd2 = document.getElementById('search-dropdown');
+    const rows = dd2.querySelectorAll('.dd-row');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!dd2.classList.contains('open')) {
+        renderDropdown(allReports, input.value.trim() || ' ');
+      }
+      setDdFocus(Math.min(ddFocusIdx + 1, rows.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setDdFocus(Math.max(ddFocusIdx - 1, 0));
+    } else if (e.key === 'Escape') {
+      closeDropdown();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (ddFocusIdx >= 0 && rows[ddFocusIdx]) {
+        const idx = parseInt(rows[ddFocusIdx].dataset.idx);
+        const q = input.value.trim();
+        const ql = q.toLowerCase();
+        const matches = allReports.filter(r =>
+          r.ticketId.toLowerCase().includes(ql) ||
+          (r.title || '').toLowerCase().includes(ql)
+        );
+        if (matches[idx]) openReport(matches[idx].ticketId);
+      } else {
+        const q = input.value.trim();
+        if (q) {
+          const exact = allReports.find(r => r.ticketId.toLowerCase() === q.toLowerCase());
+          if (exact) openReport(exact.ticketId);
+        }
+      }
+    }
+  });
+
+  input.addEventListener('blur', () => {
+    // slight delay so mousedown fires first
+    setTimeout(closeDropdown, 150);
+  });
+
+  input.addEventListener('focus', () => {
+    const q = input.value.trim();
+    if (q) {
+      const ql = q.toLowerCase();
+      const matches = allReports.filter(r =>
+        r.ticketId.toLowerCase().includes(ql) ||
+        (r.title || '').toLowerCase().includes(ql)
+      );
+      renderDropdown(matches, q);
+    }
+  });
+
+  // "/" shortcut
+  document.addEventListener('keydown', e => {
+    if (e.key === '/' && document.activeElement !== input &&
+        !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) {
+      e.preventDefault();
+      input.focus();
+      input.select();
+    }
   });
 }
 
@@ -1457,11 +1574,6 @@ async function loadReport(ticketId) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     renderReport(data);
-    // refresh nav active state
-    const navBtns = document.querySelectorAll('.nav-item');
-    navBtns.forEach(b => {
-      b.classList.toggle('active', b.textContent.trim() === ticketId);
-    });
   } catch(e) {
     showState(`Could not load report "${ticketId}": ${e.message}`, true);
   }
@@ -1469,20 +1581,20 @@ async function loadReport(ticketId) {
 
 async function init() {
   // Load index
-  let reports = [];
   try {
     const res = await fetch('data/index.json');
-    if (res.ok) reports = await res.json();
+    if (res.ok) allReports = await res.json();
   } catch(e) {}
+
+  initSearch();
 
   const params = new URLSearchParams(location.search);
   const requested = params.get('report');
-  const firstId = reports.length ? reports[0].ticketId : requested;
+  const firstId = allReports.length ? allReports[0].ticketId : null;
   const activeId = requested || firstId;
 
-  buildNav(reports, activeId);
-
   if (activeId) {
+    document.getElementById('search-input').value = activeId;
     loadReport(activeId);
   } else {
     showState('No report specified. Append ?report=<ticketId> to the URL.', false);
