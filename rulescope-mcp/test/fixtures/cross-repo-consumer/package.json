@@ -1,0 +1,7 @@
+{
+  "name": "my-frontend-app",
+  "version": "1.0.0",
+  "dependencies": {
+    "my-shared-utils": "^1.0.0"
+  }
+}
